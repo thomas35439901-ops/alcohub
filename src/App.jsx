@@ -85,7 +85,7 @@ export default function App() {
 
   const addPlayer = () => {
     if (!isPremium && players.length >= 4) {
-      return alert("🔒 試玩版最多支援 4 人！請解鎖 PRO 體驗 8 人大亂鬥！");
+      return alert("🔒 試玩版最多支援 4 人！升級 PRO 即可解鎖 8 人大亂鬥！");
     }
     if (players.length >= 8) return alert("最多只能 8 人遊玩！");
     
@@ -124,10 +124,10 @@ export default function App() {
         {/* 👑 PRO 徽章顯示 */}
         {isPremium && (
           <div className="bg-gradient-to-r from-yellow-500 to-orange-500 text-black font-black px-6 py-2 rounded-full mb-8 shadow-[0_0_20px_rgba(234,179,8,0.5)] animate-pulse">
-            👑 PRO 專業版已解鎖
+            👑 PRO 專業版已解鎖（全功能開放）
           </div>
         )}
-        {!isPremium && <div className="mb-8"></div>}
+        {!isPremium && <div className="mb-6"></div>}
 
         {/* 玩家設定區塊 */}
         <div className="w-full bg-[#12051f]/80 backdrop-blur-md border border-purple-500/30 rounded-2xl p-6 shadow-[0_0_30px_rgba(168,85,247,0.15)] mb-8">
@@ -196,39 +196,106 @@ export default function App() {
           </div>
         </div>
 
-        {/* 👑 PRO 解鎖引導 (無感跳轉版) */}
+        {/* 👑 PRO 解鎖引導 (強化版好處展示) */}
         {!isPremium && (
-          <div className="w-full bg-gradient-to-r from-yellow-900/40 to-orange-900/40 border border-yellow-500/50 rounded-2xl p-8 shadow-[0_0_40px_rgba(234,179,8,0.2)] mb-8 flex flex-col items-center text-center">
-             <h2 className="text-3xl md:text-4xl font-black text-yellow-400 mb-4 flex items-center justify-center gap-2">
-              👑 升級大醉翁 PRO
-            </h2>
-            <p className="text-gray-300 font-bold mb-6 text-lg">
-              解鎖 8 人大亂鬥、60 分鐘超長局與完整殘酷懲罰！
-            </p>
+          <div className="w-full bg-gradient-to-r from-yellow-950/60 via-purple-950/50 to-orange-950/60 border-2 border-yellow-500/60 rounded-3xl p-6 md:p-8 shadow-[0_0_50px_rgba(234,179,8,0.25)] mb-8 flex flex-col items-center">
             
-            {/* 這裡已經替換為你的專屬付款連結。移除了 target="_blank" 以確保跳轉在同一個分頁發生，實現無縫解鎖體驗 */}
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-2xl">👑</span>
+              <h2 className="text-2xl md:text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 via-orange-300 to-yellow-500">
+                升級大醉翁 PRO 完整版
+              </h2>
+            </div>
+            
+            <p className="text-gray-300 text-sm md:text-base font-bold mb-6 text-center">
+              告別 10 分鐘試玩斷點，一次解鎖所有血流成河的邪惡機制！
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 w-full mb-8">
+              <div className="bg-black/50 border border-yellow-500/30 rounded-xl p-3.5 flex items-start gap-3">
+                <span className="text-2xl bg-yellow-500/20 p-2 rounded-lg shrink-0">⚔️</span>
+                <div>
+                  <h4 className="font-black text-yellow-300 text-sm md:text-base">自由搶奪對決</h4>
+                  <p className="text-xs text-gray-400 mt-0.5">踩中他人領地可主動發起 PK 搶奪，勝者奪地、敗者喝雙倍！</p>
+                </div>
+              </div>
+
+              <div className="bg-black/50 border border-yellow-500/30 rounded-xl p-3.5 flex items-start gap-3">
+                <span className="text-2xl bg-yellow-500/20 p-2 rounded-lg shrink-0">⏳</span>
+                <div>
+                  <h4 className="font-black text-yellow-300 text-sm md:text-base">長局模式 (最高 60 分鐘)</h4>
+                  <p className="text-xs text-gray-400 mt-0.5">解鎖 30 / 45 / 60 分鐘超長對局，支援最多 8 人同時狂歡。</p>
+                </div>
+              </div>
+
+              <div className="bg-black/50 border border-yellow-500/30 rounded-xl p-3.5 flex items-start gap-3">
+                <span className="text-2xl bg-yellow-500/20 p-2 rounded-lg shrink-0">🎮</span>
+                <div>
+                  <h4 className="font-black text-yellow-300 text-sm md:text-base">13 款派對小遊戲全解鎖</h4>
+                  <p className="text-xs text-gray-400 mt-0.5">追加真心話大冒險、射龍門、倒楣A、Never Have I Ever 等高恥度玩法。</p>
+                </div>
+              </div>
+
+              <div className="bg-black/50 border border-yellow-500/30 rounded-xl p-3.5 flex items-start gap-3">
+                <span className="text-2xl bg-yellow-500/20 p-2 rounded-lg shrink-0">💥</span>
+                <div>
+                  <h4 className="font-black text-yellow-300 text-sm md:text-base">暗黑破壞卡庫</h4>
+                  <p className="text-xs text-gray-400 mt-0.5">解鎖摧毀卡（炸毀地產）、國王卡（絕對命令）、真心話鎖定等搞事神卡。</p>
+                </div>
+              </div>
+            </div>
+
             <a 
-              href="https://buymeacoffee.com/thomas0982" 
-              className="bg-gradient-to-r from-yellow-500 to-orange-500 hover:scale-105 transition-transform text-black font-black text-xl px-10 py-4 rounded-xl shadow-[0_0_20px_rgba(234,179,8,0.5)] w-full max-w-md flex flex-col items-center"
+              href="https://buymeacoffee.com/thomas0982/e/584709" 
+              className="bg-gradient-to-r from-yellow-500 via-orange-400 to-yellow-500 hover:scale-105 transition-transform text-black font-black text-xl px-8 py-4 rounded-2xl shadow-[0_0_30px_rgba(234,179,8,0.5)] w-full max-w-md flex flex-col items-center justify-center"
             >
-              <span>💳 立即自動解鎖</span>
-              <span className="text-sm font-bold opacity-80 mt-1">(約 1 杯 Shot 的價格)</span>
+              <span className="tracking-wide">💳 立即自動解鎖 PRO 版</span>
+              <span className="text-xs font-bold opacity-80 mt-1">一杯 Shot 的價格 · 本裝置自動生效</span>
             </a>
-            <p className="text-xs text-gray-400 mt-3 font-bold">付款後將自動跳轉回本頁並完成解鎖</p>
+            <p className="text-[11px] text-gray-400 mt-3 font-bold">付款完成後將自動跳轉回本頁並解鎖，無須手動記帳號密碼</p>
           </div>
         )}
 
-        {/* 開始按鈕 */}
-        <div className="w-full bg-gray-900/80 backdrop-blur-md border border-gray-700 rounded-2xl p-6 shadow-xl mb-6">
-          <label className="flex items-center gap-3 cursor-pointer group w-max mb-6">
-            <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="w-6 h-6 appearance-none border-2 border-gray-500 rounded-md checked:bg-green-500 transition-all cursor-pointer" />
-            <span className={`font-black text-lg select-none ${agreed ? 'text-green-400' : 'text-gray-400'}`}>我已滿法定飲酒年齡，並同意適量飲酒、注意安全。</span>
+        {/* ⚠️ 安全免責聲明與開始按鈕區塊 (完全還原截圖設計) */}
+        <div className="w-full bg-[#11131a]/95 backdrop-blur-md border border-gray-700/60 rounded-2xl p-6 md:p-8 shadow-2xl mb-6 flex flex-col gap-5">
+          
+          <h3 className="text-xl font-black flex items-center gap-2 text-red-400">
+            <span className="text-yellow-400 text-2xl">⚠️</span> 安全免責聲明
+          </h3>
+
+          {/* 捲動條款框 */}
+          <div className="bg-[#08090d] border border-gray-800 rounded-lg p-5 h-44 overflow-y-auto text-sm md:text-base text-gray-400 space-y-2 font-bold leading-relaxed scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-transparent">
+            <ol className="list-decimal pl-5 space-y-2 marker:text-gray-500">
+              <li>本遊戲包含飲酒懲罰機制，僅限達到法定飲酒年齡之成年人遊玩。</li>
+              <li>玩家應根據自身酒量與身體狀況量力而為，嚴禁強迫灌酒或霸凌行為。</li>
+              <li>遊戲過程中若感身體不適，請立即停止遊戲並尋求協助。</li>
+              <li>喝酒不開車，開車不喝酒。遊玩後請確保有安全返家的交通方式。</li>
+              <li>遊戲開發者與平台對玩家因遊玩本遊戲而產生之任何健康、法律或財產後果概不負責。</li>
+            </ol>
+          </div>
+
+          {/* 同意勾選框 */}
+          <label className="flex items-center gap-3 cursor-pointer group w-max my-1">
+            <div className={`w-6 h-6 flex items-center justify-center border-2 rounded-[4px] transition-all ${agreed ? 'bg-transparent border-gray-400' : 'bg-transparent border-gray-500 group-hover:border-gray-400'}`}>
+              {agreed && <span className="text-gray-200 text-sm font-black drop-shadow-md">✓</span>}
+            </div>
+            <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="hidden" />
+            <span className={`font-bold text-lg select-none transition-colors ${agreed ? 'text-gray-300' : 'text-gray-400'}`}>
+              我已閱讀並同意上述條款
+            </span>
           </label>
+
+          {/* 大按鈕 */}
           <button 
-            onClick={() => agreed && setIsGameStarted(true)} disabled={!agreed}
-            className={`w-full py-5 rounded-2xl font-black text-2xl transition-all duration-500 ${agreed ? 'bg-gradient-to-r from-purple-600 to-emerald-500 text-white shadow-[0_0_30px_rgba(168,85,247,0.6)] hover:scale-[1.02]' : 'bg-gray-800 text-gray-500 cursor-not-allowed border-2 border-gray-700'}`}
+            onClick={() => agreed && setIsGameStarted(true)} 
+            disabled={!agreed}
+            className={`w-full py-4 rounded-xl font-black text-xl transition-all duration-300 ${
+              agreed 
+                ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-[0_0_20px_rgba(79,70,229,0.5)] hover:scale-[1.02] cursor-pointer border border-blue-500/50' 
+                : 'bg-[#1c202a] text-gray-500 cursor-not-allowed border border-gray-700/50'
+            }`}
           >
-            {agreed ? "🚀 開始遊戲" : "請先勾選同意條款"}
+            {agreed ? "🚀 開始遊戲" : "請先勾選同意上述條款"}
           </button>
         </div>
 

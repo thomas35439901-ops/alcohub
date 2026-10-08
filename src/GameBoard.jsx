@@ -44,45 +44,46 @@ const playSound = (type) => {
       gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
       osc.start(ctx.currentTime);
       osc.stop(ctx.currentTime + 0.5);
-    } else if (type === 'win') {
-      osc.type = 'square';
-      osc.frequency.setValueAtTime(400, ctx.currentTime);
-      osc.frequency.setValueAtTime(600, ctx.currentTime + 0.2);
-      osc.frequency.setValueAtTime(800, ctx.currentTime + 0.4);
-      gain.gain.setValueAtTime(0.3, ctx.currentTime);
-      gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 1);
-      osc.start(ctx.currentTime);
-      osc.stop(ctx.currentTime + 1);
-    }
+    } 
+    // 註: 'win' 音效已從這裡移除，也不會再被呼叫
   } catch (e) { console.log("Audio skipped"); }
 };
 
 // ==========================================
-// 資料庫 (遊戲庫、卡牌、城市)
+// 👑 PRO 限制 3: 小遊戲題庫 (自動過濾版)
 // ==========================================
 const minigameLibrary = [
-  { name: '撞機', rules: '從 1 開始輪流喊數字。兩人同時喊出同個數字即為「撞號」。撞號者喝 1 口！' },
-  { name: '圍枚', rules: '全部人伸出拳頭。踩中格子的玩家開始，選擇一個方向接。由開始玩家自訂輸家喝多少口！' },
-  { name: '拍7', rules: '大家輪流報數，遇到 7 和 7 的倍數要拍手不能出聲。報錯或出聲的人喝 1 口！' },
-  { name: '上下樓梯', rules: '以莊家為一樓，順時針編號。莊家叫「一樓上X樓」，被叫者 5 秒內接「X樓上下Y樓」。錯的喝 1 口！' },
-  { name: '敲敲杯', rules: '用筷子圍一圈杯子，莊家喊口號，最後一句全體敲杯。與莊家同杯者喝！沒人同杯莊家喝！' },
-  { name: '射龍門', rules: '抽兩張牌當門柱，先賭幾口再開第三張。門柱外=失敗；撞柱=喝兩倍！成功則指定下家喝！' },
-  { name: '真心話大冒險', rules: '轉玻璃瓶，轉到誰就必須選擇真心話或大冒險。不執行者喝 2 口！' },
-  { name: '倒楣A', rules: '排 5x4 撲克牌輪流翻。10=反轉方向, J=加公杯, Q=免喝牌, K=喝, A=再抽。最後一張A喝光公杯！' },
-  { name: '主題接龍', rules: '莊家出題，指定方向輪流接龍。每人只有 3 秒！接不上或重複者喝 1 口！' },
-  { name: 'Never Have I Ever', rules: '說一句「我從來沒有...」做過的事。做過的人喝 1 口！全場都沒做過出題者自罰！' },
-  { name: '倒水杯', rules: '準備一個杯子，玩家輪流往杯裡注水/酒。液體滿出來灑在桌上的人輸，喝 1 口！' },
-  { name: 'Assa', rules: '雙手隨機指人喊「啊薩你你」。被指到的大喊「Assa紅參」擺動作，其餘人模仿。做錯的喝 1 口！' },
-  { name: '7-11', rules: '抽牌與桌上牌加減湊 7 或 11，湊出幾張就罰下家幾口。算錯自己把牌收下並自罰！' },
+  // 🟢 免費版基礎破冰遊戲
+  { name: '撞機', rules: '從 1 開始輪流喊數字。兩人同時喊出同個數字即為「撞號」。撞號者喝 1 口！', isPro: false },
+  { name: '圍枚', rules: '全部人伸出拳頭。踩中格子的玩家開始，選擇一個方向接。由開始玩家自訂輸家喝多少口！', isPro: false },
+  { name: '拍7', rules: '大家輪流報數，遇到 7 和 7 的倍數要拍手不能出聲。報錯或出聲的人喝 1 口！', isPro: false },
+  { name: '上下樓梯', rules: '以莊家為一樓，順時針編號。莊家叫「一樓上X樓」，被叫者 5 秒內接「X樓上下Y樓」。錯的喝 1 口！', isPro: false },
+  { name: '敲敲杯', rules: '用筷子圍一圈杯子，莊家喊口號，最後一句全體敲杯。與莊家同杯者喝！沒人同杯莊家喝！', isPro: false },
+  
+  // 👑 PRO 專屬刺激遊戲
+  { name: '射龍門', rules: '抽兩張牌當門柱，先賭幾口再開第三張。門柱外=失敗；撞柱=喝兩倍！成功則指定下家喝！', isPro: true },
+  { name: '真心話大冒險', rules: '轉玻璃瓶，轉到誰就必須選擇真心話或大冒險。不執行者喝 2 口！', isPro: true },
+  { name: '倒楣A', rules: '排 5x4 撲克牌輪流翻。10=反轉方向, J=加公杯, Q=免喝牌, K=喝, A=再抽。最後一張A喝光公杯！', isPro: true },
+  { name: '主題接龍', rules: '莊家出題，指定方向輪流接龍。每人只有 3 秒！接不上或重複者喝 1 口！', isPro: true },
+  { name: 'Never Have I Ever', rules: '說一句「我從來沒有...」做過的事。做過的人喝 1 口！全場都沒做過出題者自罰！', isPro: true },
+  { name: '倒水杯', rules: '準備一個杯子，玩家輪流往杯裡注水/酒。液體滿出來灑在桌上的人輸，喝 1 口！', isPro: true },
+  { name: 'Assa', rules: '雙手隨機指人喊「啊薩你你」。被指到的大喊「Assa紅參」擺動作，其餘人模仿。做錯的喝 1 口！', isPro: true },
+  { name: '7-11', rules: '抽牌與桌上牌加減湊 7 或 11，湊出幾張就罰下家幾口。算錯自己把牌收下並自罰！', isPro: true },
 ];
 
+// ==========================================
+// 👑 PRO 限制 4: 命運卡數量封印 (自動過濾版)
+// ==========================================
 const chanceCards = [
-  { id: 'shield', name: '免喝卡', icon: '🛡️', desc: '獲得一次免喝特權，遇到罰酒或失敗懲罰時可抵消！' },
-  { id: 'carpet', name: '飛天魔毯', icon: '🧞', desc: '立刻飛到棋盤上任意指定位置，並觸發該格事件！' },
-  { id: 'destroy', name: '摧毀卡', icon: '💥', desc: '無情摧毀！強制移除對手的一塊區域與所有酒瓶！' },
-  { id: 'truth', name: '真心話', icon: '💬', desc: '向全場佔領「酒瓶數最少」的玩家發起一個辛辣提問！' },
-  { id: 'king', name: '國王卡', icon: '👑', desc: '絕對權力！指定現場一人做一件不違反底線的事！' },
-  { id: 'cup', name: '公杯加料', icon: '🍺', desc: '立刻往中央公杯加入 1 口你的飲料！' }
+  // 🟢 免費基礎卡
+  { id: 'shield', name: '免喝卡', icon: '🛡️', desc: '獲得一次免喝特權，遇到罰酒或失敗懲罰時可抵消！', isPro: false },
+  { id: 'carpet', name: '飛天魔毯', icon: '🧞', desc: '立刻飛到棋盤上任意指定位置，並觸發該格事件！', isPro: false },
+  { id: 'cup', name: '公杯加料', icon: '🍺', desc: '立刻往中央公杯加入 1 口你的飲料！', isPro: false },
+  
+  // 👑 PRO 專屬暗黑卡
+  { id: 'destroy', name: '摧毀卡', icon: '💥', desc: '無情摧毀！強制移除對手的一塊區域與所有酒瓶！', isPro: true },
+  { id: 'truth', name: '真心話', icon: '💬', desc: '向全場佔領「酒瓶數最少」的玩家發起一個辛辣提問！', isPro: true },
+  { id: 'king', name: '國王卡', icon: '👑', desc: '絕對權力！指定現場一人做一件不違反底線的事！', isPro: true },
 ];
 
 const citiesData = [
@@ -194,9 +195,9 @@ const PlayerToken = ({ player, playerIdx, isMoving, isCurrentTurn }) => {
 };
 
 // ==========================================
-// 遊戲主程式
+// 遊戲主程式 (👑 接收 isPremium)
 // ==========================================
-export default function GameBoard({ initialPlayers, initialTime, onRestart }) {
+export default function GameBoard({ initialPlayers, initialTime, isPremium, onRestart }) {
   
   const defaultPlayers = [
     { id: 1, name: "玩家一", color: "border-red-500 text-red-400 bg-red-950", hexColor: "#ef4444", icon: "🍷", position: 0, state: 'NORMAL', areas: 0, bottles: 0, inventory: [] },
@@ -222,7 +223,7 @@ export default function GameBoard({ initialPlayers, initialTime, onRestart }) {
   const [turnPopup, setTurnPopup] = useState(false);
 
   const currentPlayer = players[currentTurnIndex] || players[0];
-  const isMinigameActive = activeModal.show && (activeModal.type === 'MINIGAME' || activeModal.type === 'STEAL_CHALLENGE');
+  const isMinigameActive = activeModal.show && (activeModal.type === 'MINIGAME' || activeModal.type === 'STEAL_CHALLENGE' || activeModal.type === 'PROMO_BLOCK');
   const isGameOver = activeModal.show && activeModal.type === 'GAME_OVER';
 
   useEffect(() => {
@@ -242,7 +243,9 @@ export default function GameBoard({ initialPlayers, initialTime, onRestart }) {
     return () => clearInterval(timerId);
   }, [isMinigameActive, isGameOver, timeLeft]);
 
-  const triggerGameOver = () => { playSound('win'); setActiveModal({ show: true, type: 'GAME_OVER' }); };
+  // 👑 已經取消 GAME_OVER 的音效 (移除了 playSound('win'))
+  const triggerGameOver = () => { setActiveModal({ show: true, type: 'GAME_OVER' }); };
+  
   const triggerFlash = (colorClass) => { setScreenFlash(colorClass); setTimeout(() => setScreenFlash(""), 500); };
   const formatTime = (seconds) => {
     if (isNaN(seconds) || seconds <= 0) return "00:00";
@@ -265,9 +268,12 @@ export default function GameBoard({ initialPlayers, initialTime, onRestart }) {
       }
     } 
     else if (space?.type === 'MINIGAME') {
-      const randomGame = minigameLibrary[Math.floor(Math.random() * minigameLibrary.length)];
+      // 👑 PRO 限制攔截: 自動過濾 PRO 小遊戲，不打斷體驗
+      const availableGames = isPremium ? minigameLibrary : minigameLibrary.filter(g => !g.isPro);
+      const randomGame = availableGames[Math.floor(Math.random() * availableGames.length)];
       setActiveModal({ show: true, type: 'MINIGAME', space, customData: randomGame });
-    } else {
+    } 
+    else {
       setActiveModal({ show: true, type: space?.type || '', space });
     }
   };
@@ -359,11 +365,25 @@ export default function GameBoard({ initialPlayers, initialTime, onRestart }) {
   };
   const handlePenaltyDrink = () => { triggerFlash('bg-red-500/40'); playSound('alert'); notifyEscorts(); nextTurn(); };
   
-  // ==========================================
-  // 【修改】：省略輸入名稱畫面，直接進入自由對決
-  // ==========================================
+  // 👑 PRO 限制攔截: 發起搶奪
   const handleStealInitiate = () => {
-    setActiveModal({ show: true, type: 'STEAL_CHALLENGE', space: activeModal.space, customData: activeModal.customData });
+    if (!isPremium) {
+      setActiveModal({
+        show: true,
+        type: 'PROMO_BLOCK',
+        space: activeModal.space,
+        customData: {
+          title: '🔒 搶奪失敗 (PRO 專屬)',
+          message: '你原本可以發起決鬥，把這塊地搶過來並讓他喝兩杯...\n但試玩版不支援地產搶奪！請乖乖支付過路費。',
+          action: () => {
+            alert(`乖乖喝 ${activeModal.customData.bottles} 口！`);
+            handlePenaltyDrink();
+          }
+        }
+      });
+    } else {
+      setActiveModal({ show: true, type: 'STEAL_CHALLENGE', space: activeModal.space, customData: activeModal.customData });
+    }
   };
 
   const handleStealWin = () => {
@@ -404,6 +424,7 @@ export default function GameBoard({ initialPlayers, initialTime, onRestart }) {
   };
   const handleDrinkCup = () => { setPublicCup(0); triggerFlash('bg-orange-500/50'); notifyEscorts(); nextTurn(); };
   const handleChangeState = (newState) => { setPlayers(prev => prev.map(p => p.id === currentPlayer.id ? { ...p, state: newState } : p)); triggerFlash('bg-purple-500/40'); nextTurn(); };
+  
   const handleUseImmunityCard = () => {
     playSound('buy'); triggerFlash('bg-yellow-400/40');
     setPlayers(prev => prev.map(p => {
@@ -412,10 +433,14 @@ export default function GameBoard({ initialPlayers, initialTime, onRestart }) {
     }));
     alert("🛡️ 成功發動【免喝卡】！已抵消本次懲罰！"); nextTurn();
   };
+
+  // 👑 PRO 限制攔截: 命運卡 (自動過濾版，不打斷體驗)
   const handleDrawCard = () => {
-    const card = chanceCards[Math.floor(Math.random() * chanceCards.length)];
+    const availableCards = isPremium ? chanceCards : chanceCards.filter(c => !c.isPro);
+    const card = availableCards[Math.floor(Math.random() * availableCards.length)];
     setActiveModal({ show: true, type: 'CHANCE_RESULT', space: activeModal.space, customData: card });
   };
+
   const executeTeleport = () => {
     const targetId = parseInt(modalInput || "1"); 
     if (targetId === currentPlayer.position) { alert("不能原地傳送！"); return; }
@@ -441,6 +466,17 @@ export default function GameBoard({ initialPlayers, initialTime, onRestart }) {
   const renderModalContent = () => {
     const { type, space, customData } = activeModal;
     switch (type) {
+      case 'PROMO_BLOCK': {
+        return (
+          <>
+            <h3 className="text-3xl font-black text-yellow-400 mb-4">{customData.title}</h3>
+            <p className="text-gray-300 mb-8 whitespace-pre-line font-bold leading-relaxed">{customData.message}</p>
+            <button onClick={customData.action} className="w-full bg-gray-700 hover:bg-gray-600 text-white font-bold py-4 rounded-xl transition-colors">
+              無奈接受
+            </button>
+          </>
+        );
+      }
       case 'SKIP_JAIL': {
         return (
           <>
@@ -467,17 +503,47 @@ export default function GameBoard({ initialPlayers, initialTime, onRestart }) {
         const winner = sortedPlayers[0];
         return (
           <>
-            <div className="text-8xl mb-4 animate-bounce drop-shadow-[0_0_20px_rgba(250,204,21,0.8)]">🏆</div>
-            <h2 className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 to-yellow-600 mb-2">時間到！遊戲結束</h2>
-            <div className="w-full bg-yellow-900/40 border border-yellow-500 p-6 rounded-2xl my-6">
-              <p className="text-xl text-gray-300 mb-2">全場 MVP 酒神：</p>
-              <p className="text-4xl font-black mb-4" style={{ color: winner?.hexColor }}>{winner?.icon} {winner?.name}</p>
-              <div className="flex justify-center gap-6 text-lg font-bold text-gray-200">
-                <span>🍾 總酒瓶：{winner?.bottles} 支</span>
-                <span>🏠 總地盤：{winner?.areas} 塊</span>
+            <h1 className="text-4xl md:text-5xl font-black text-red-500 mb-6 animate-bounce">
+              {isPremium ? '🏁 遊戲結束！' : '⏳ 試玩局 熱身結束！'}
+            </h1>
+            
+            <div className="w-full bg-gray-900/80 px-6 py-4 rounded-2xl border border-gray-600 mb-6">
+              <p className="text-lg text-gray-300 mb-1">大醉翁地產王：</p>
+              <p className="text-3xl font-black mb-2" style={{ color: winner?.hexColor }}>{winner?.icon} {winner?.name}</p>
+              <div className="flex justify-center gap-4 text-sm font-bold text-gray-400">
+                <span>🏠 {winner?.areas} 塊</span>
+                <span>🍾 {winner?.bottles} 支</span>
               </div>
             </div>
-            <button className="w-full bg-gradient-to-r from-cyan-600 to-blue-600 hover:scale-105 transition-transform text-white font-black tracking-widest py-4 rounded-xl text-xl shadow-[0_0_20px_rgba(8,145,178,0.6)]" onClick={onRestart}>🔄 返回大廳再戰一局</button>
+
+            {!isPremium ? (
+              <div className="w-full bg-gradient-to-r from-yellow-900/60 to-orange-900/60 border border-yellow-500 rounded-3xl p-6 mb-6 shadow-[0_0_30px_rgba(234,179,8,0.3)]">
+                <p className="text-lg text-gray-200 mb-4 font-black leading-relaxed">
+                  各位的酒杯似乎還很滿？<br/>氣氛才剛熱起來就結束了嗎？
+                </p>
+                <ul className="text-left text-yellow-200 mb-6 space-y-2 font-bold w-fit mx-auto text-sm">
+                  <li>✅ 解鎖 <span className="text-white">60 分鐘</span> 無限血戰模式</li>
+                  <li>✅ 開放 8 人大亂鬥與 <span className="text-white">搶奪地盤</span></li>
+                  <li>✅ 擴充 <span className="text-white">8 款超刺激小遊戲</span> (如真心話、射龍門)</li>
+                  <li>✅ 釋放 <span className="text-white">摧毀卡、國王卡</span> 等暗黑命運卡</li>
+                </ul>
+                <a 
+                  href="https://buymeacoffee.com/thomas0982/e/584709" 
+                  className="flex flex-col items-center justify-center bg-gradient-to-r from-yellow-500 to-orange-500 text-black font-black text-xl px-6 py-3 rounded-xl shadow-lg hover:scale-105 transition-transform"
+                >
+                  <span>💳 立即解鎖大醉翁 PRO</span>
+                  <span className="text-xs font-bold opacity-80 mt-1">(僅需約 1 杯 Shot 的價格)</span>
+                </a>
+              </div>
+            ) : (
+              <button className="w-full bg-gradient-to-r from-cyan-600 to-blue-600 hover:scale-105 transition-transform text-white font-black tracking-widest py-4 rounded-xl text-xl shadow-[0_0_20px_rgba(8,145,178,0.6)]" onClick={onRestart}>
+                🔄 再戰一局
+              </button>
+            )}
+
+            {!isPremium && (
+               <button onClick={onRestart} className="text-gray-400 hover:text-white underline font-bold mt-2">返回大廳</button>
+            )}
           </>
         );
       }
@@ -515,14 +581,12 @@ export default function GameBoard({ initialPlayers, initialTime, onRestart }) {
                 <button className="w-full bg-yellow-600 text-white font-bold py-3 rounded-xl shadow-[0_0_15px_rgba(202,138,4,0.6)] text-lg animate-pulse" onClick={handleUseImmunityCard}>🛡️ 使用【免喝卡】抵消</button>
               )}
               <button className="bg-red-600 hover:bg-red-500 text-white font-bold py-4 rounded-xl shadow-[0_0_15px_rgba(220,38,38,0.6)] text-xl" onClick={handlePenaltyDrink}>😭 乖乖罰喝 {customData?.bottles} 口</button>
+              
               <button className="bg-purple-700 hover:bg-purple-600 text-white font-bold py-3 rounded-xl border border-purple-500" onClick={handleStealInitiate}>⚔️ 喝 {customData?.bottles * 2} 口並發起搶奪挑戰！</button>
             </div>
           </>
         );
       }
-      // ==========================================
-      // 【修改】：更精簡直接的搶奪對決畫面
-      // ==========================================
       case 'STEAL_CHALLENGE': {
         return (
           <>
@@ -708,7 +772,7 @@ export default function GameBoard({ initialPlayers, initialTime, onRestart }) {
         if (ownedProperties.length === 0) {
           return (
             <>
-              <div className="text-6xl mb-4">🏜️</div>
+              <div className="text-6xl mb-4">🏜</div>
               <h2 className="text-3xl font-black text-gray-400 mb-4">無人佔領</h2>
               <p className="text-lg text-gray-300 mb-8">目前場上沒有任何被佔領的區域，摧毀卡失效！</p>
               <button className="w-full bg-gray-600 text-white font-bold py-4 rounded-xl text-xl" onClick={nextTurn}>✅ 結束回合</button>
@@ -816,7 +880,7 @@ export default function GameBoard({ initialPlayers, initialTime, onRestart }) {
                 const owner = players.find(p => p.id === ownerId);
 
                 return (
-                  <div key={space.id} style={{ ...gridPos }} className={`relative flex items-center justify-center bg-[#1a0f2e] transition-all overflow-hidden ${isCorner ? 'rounded-lg' : ''} ${owner ? 'shadow-[inset_0_0_20px_currentColor]' : ''}`} style={{ ...gridPos, color: owner ? owner.hexColor : 'inherit' }}>
+                  <div key={space.id} style={{ ...gridPos, color: owner ? owner.hexColor : 'inherit' }} className={`relative flex items-center justify-center bg-[#1a0f2e] transition-all overflow-hidden ${isCorner ? 'rounded-lg' : ''} ${owner ? 'shadow-[inset_0_0_20px_currentColor]' : ''}`}>
                     
                     {isProperty && (
                       <div className={`absolute ${barStyle} ${owner ? '' : space.colorBg} shadow-[0_0_10px_currentColor]`} style={{ backgroundColor: owner ? owner.hexColor : '' }}></div>
@@ -891,7 +955,7 @@ export default function GameBoard({ initialPlayers, initialTime, onRestart }) {
       {activeModal.show && (
         <div className="fixed inset-0 bg-black/80 z-[200] flex items-center justify-center p-4 backdrop-blur-sm">
           <div className="w-full max-w-md bg-[#120512] border-2 border-purple-500/50 rounded-2xl shadow-[0_0_50px_rgba(168,85,247,0.3)] flex flex-col items-center text-center p-6 md:p-8 animate-[fadeIn_0.2s_ease-out]">
-            {activeModal.type !== 'GAME_OVER' && currentPlayer && (
+            {activeModal.type !== 'GAME_OVER' && activeModal.type !== 'PROMO_BLOCK' && currentPlayer && (
               <div className="absolute -top-4 bg-black border border-gray-600 text-gray-300 px-4 py-1 rounded-full text-xs md:text-sm font-bold shadow-md">
                 {currentPlayer.name} 的指令
               </div>
