@@ -30,34 +30,32 @@ export default function App() {
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     
-    // 保險一：偵測金流平台跳轉回來的 ?vip=success
-    if (urlParams.get('vip') === 'success') {
-      setIsPremium(true);
-      localStorage.setItem('alcohub_premium', 'true');
-      
-      // 魔法瞬間：擦掉網址上的特殊參數，避免玩家複製
-      window.history.replaceState({}, document.title, window.location.pathname);
-      
-      setTimeout(() => {
-        alert("🎉 付款成功！大醉翁 PRO 已為您自動解鎖！\n盡情享受血流成河的派對吧！");
-      }, 500);
-    } 
-    // 保險二：如果沒有參數，檢查瀏覽器是否存有解鎖記憶
-    else if (localStorage.getItem('alcohub_premium') === 'true') {
-      setIsPremium(true);
+    // 🛡️ 加入 try...catch 防護罩，防止 Safari 無痕模式引發白畫面崩潰
+    try {
+      // 保險一：偵測金流平台跳轉回來的 ?vip=success
+      if (urlParams.get('vip') === 'success') {
+        setIsPremium(true);
+        localStorage.setItem('alcohub_premium', 'true');
+        
+        // 魔法瞬間：擦掉網址上的特殊參數，避免玩家複製
+        window.history.replaceState({}, document.title, window.location.pathname);
+        
+        setTimeout(() => {
+          alert("🎉 付款成功！大醉翁 PRO 已為您自動解鎖！\n盡情享受血流成河的派對吧！");
+        }, 500);
+      } 
+      // 保險二：如果沒有參數，檢查瀏覽器是否存有解鎖記憶
+      else if (localStorage.getItem('alcohub_premium') === 'true') {
+        setIsPremium(true);
+      }
+    } catch (error) {
+      console.warn("Safari 私密瀏覽模式阻擋了本地記憶功能，已安全攔截，不影響免費版遊玩！");
     }
   }, []);
 
-  // 手動恢復購買邏輯
+  // 升級版：無後端安全恢復購買邏輯
   const handleRestorePurchase = () => {
-    const code = prompt("請輸入確認信中的恢復購買代碼：");
-    if (code && code.trim().toUpperCase() === "ALCO-OCT-26") {
-      setIsPremium(true);
-      localStorage.setItem('alcohub_premium', 'true');
-      alert("✅ 恢復成功！已為您重新解鎖 PRO 版本。");
-    } else if (code !== null) {
-      alert("❌ 密碼錯誤或已失效，請確認您的贊助確認信。");
-    }
+    alert("📩 恢復購買說明：\n\n請前往您的電子信箱，尋找來自 Buy Me a Coffee 的「付款確認信」。\n\n只要在新設備上打開該信件，並點擊信中的【解鎖遊戲連結】，即可瞬間恢復您的 PRO 權限！");
   };
 
   const [timeMinutes, setTimeMinutes] = useState(10); 
@@ -250,20 +248,27 @@ export default function App() {
               className="bg-gradient-to-r from-yellow-500 via-orange-400 to-yellow-500 hover:scale-105 transition-transform text-black font-black text-xl px-8 py-4 rounded-2xl shadow-[0_0_30px_rgba(234,179,8,0.5)] w-full max-w-md flex flex-col items-center justify-center"
             >
               <span className="tracking-wide">💳 立即自動解鎖 PRO 版</span>
-              <span className="text-xs font-bold opacity-80 mt-1">一杯 Shot 的價格 · 本裝置自動生效</span>
+              <span className="text-xs font-bold opacity-80 mt-1">約一杯 Shot 的價格 · 本裝置自動生效</span>
             </a>
+            
+            {/* 防呆提示 (如果你已經在 BMAC 改回 40 整數，這裡也可以保留作為提醒) */}
+            <div className="mt-3 bg-red-900/50 border border-red-500/50 px-4 py-2 rounded-lg">
+              <p className="text-sm text-yellow-300 font-black animate-pulse">
+                💡 結帳提示：若遇金額欄位空白，請直接輸入「40」即可順利結帳！
+              </p>
+            </div>
+            
             <p className="text-[11px] text-gray-400 mt-3 font-bold">付款完成後將自動跳轉回本頁並解鎖，無須手動記帳號密碼</p>
           </div>
         )}
 
-        {/* ⚠️ 安全免責聲明與開始按鈕區塊 (完全還原截圖設計) */}
+        {/* ⚠️ 安全免責聲明與開始按鈕區塊 */}
         <div className="w-full bg-[#11131a]/95 backdrop-blur-md border border-gray-700/60 rounded-2xl p-6 md:p-8 shadow-2xl mb-6 flex flex-col gap-5">
           
           <h3 className="text-xl font-black flex items-center gap-2 text-red-400">
             <span className="text-yellow-400 text-2xl">⚠️</span> 安全免責聲明
           </h3>
 
-          {/* 捲動條款框 */}
           <div className="bg-[#08090d] border border-gray-800 rounded-lg p-5 h-44 overflow-y-auto text-sm md:text-base text-gray-400 space-y-2 font-bold leading-relaxed scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-transparent">
             <ol className="list-decimal pl-5 space-y-2 marker:text-gray-500">
               <li>本遊戲包含飲酒懲罰機制，僅限達到法定飲酒年齡之成年人遊玩。</li>
@@ -274,7 +279,6 @@ export default function App() {
             </ol>
           </div>
 
-          {/* 同意勾選框 */}
           <label className="flex items-center gap-3 cursor-pointer group w-max my-1">
             <div className={`w-6 h-6 flex items-center justify-center border-2 rounded-[4px] transition-all ${agreed ? 'bg-transparent border-gray-400' : 'bg-transparent border-gray-500 group-hover:border-gray-400'}`}>
               {agreed && <span className="text-gray-200 text-sm font-black drop-shadow-md">✓</span>}
@@ -285,7 +289,6 @@ export default function App() {
             </span>
           </label>
 
-          {/* 大按鈕 */}
           <button 
             onClick={() => agreed && setIsGameStarted(true)} 
             disabled={!agreed}
