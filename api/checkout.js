@@ -26,9 +26,8 @@ export default async function handler(req, res) {
 
     const siteUrl = process.env.VITE_SITE_URL || 'https://alcohub.vercel.app';
 
-    // 建立 Stripe 結帳 Session
+    // 建立 Stripe Checkout 結帳 Session（由 Stripe 後台自動動態適配付款方式）
     const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
       line_items: [
         {
           price: priceId,
