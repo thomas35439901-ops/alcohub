@@ -90,7 +90,6 @@ const chanceCards = [
 // ==========================================
 const MELTDOWN_MAX = 15; // 擲骰 15 次引爆
 
-// 💡 國王的新規「隨機題庫」
 const KING_RULES = [
   "禁止用手指人",
   "禁止說「你、我、他」",
@@ -218,9 +217,9 @@ const PlayerToken = ({ player, playerIdx, isMoving, isCurrentTurn }) => {
 };
 
 // ==========================================
-// 遊戲主程式 (👑 接收 isPremium)
+// 遊戲主程式 (👑 接收 isPremium 與 onShowPaywall)
 // ==========================================
-export default function GameBoard({ initialPlayers, initialTime, isPremium, onRestart }) {
+export default function GameBoard({ initialPlayers, initialTime, isPremium, onRestart, onShowPaywall }) {
   
   const defaultPlayers = [
     { id: 1, name: "玩家一", color: "border-red-500 text-red-400 bg-red-950", hexColor: "#ef4444", icon: "🍷", position: 0, state: 'NORMAL', areas: 0, bottles: 0, inventory: [] },
@@ -426,6 +425,8 @@ export default function GameBoard({ initialPlayers, initialTime, isPremium, onRe
   };
 
   const closeEvent = () => { setShowEventModal(false); advancePlayerTurn(); };
+  
+  // 當非 PRO 玩家遇到全域事件時，顯示攔截彈窗，點擊「無奈跳過」繼續回合
   const closeFomoAndSkip = () => { setShowFomoModal(false); advancePlayerTurn(); };
 
   const notifyEscorts = () => {
@@ -592,8 +593,14 @@ export default function GameBoard({ initialPlayers, initialTime, isPremium, onRe
           <>
             <h3 className="text-3xl font-black text-yellow-400 mb-4">{customData.title}</h3>
             <p className="text-gray-300 mb-8 whitespace-pre-line font-bold leading-relaxed">{customData.message}</p>
-            <button onClick={customData.action} className="w-full bg-gray-700 hover:bg-gray-600 text-white font-bold py-4 rounded-xl transition-colors">
+            <button onClick={customData.action} className="w-full bg-gray-700 hover:bg-gray-600 text-white font-bold py-4 rounded-xl transition-colors mb-3">
               無奈接受
+            </button>
+            <button 
+              onClick={() => onShowPaywall && onShowPaywall()}
+              className="w-full text-yellow-400 hover:text-yellow-300 underline font-bold"
+            >
+              👑 升級 PRO 獲得完整權限
             </button>
           </>
         );
@@ -640,13 +647,16 @@ export default function GameBoard({ initialPlayers, initialTime, isPremium, onRe
                 <ul className="text-left text-yellow-200 mb-6 space-y-2 font-bold w-fit mx-auto text-sm">
                   <li>✅ 解鎖 <span className="text-white">60 分鐘</span> 無限血戰模式</li>
                   <li>✅ 開放 8 人大亂鬥與 <span className="text-white">地產升級與搶奪</span></li>
-                  <li>✅ 擴充 <span className="text-white">8 款超刺激小遊戲</span> (如真心話、射龍門)</li>
-                  <li>✅ 釋放 <span className="text-white">摧毀卡、國王卡、全域災難</span> 等暗黑機制</li>
+                  <li>✅ 擴充 <span className="text-white">8 款超刺激小遊戲</span></li>
+                  <li>✅ 釋放 <span className="text-white">摧毀卡、國王卡、全域災難</span></li>
                 </ul>
-                <a href="https://buymeacoffee.com/thomas0982/e/584709" className="flex flex-col items-center justify-center bg-gradient-to-r from-yellow-500 to-orange-500 text-black font-black text-xl px-6 py-3 rounded-xl shadow-lg hover:scale-105 transition-transform">
+                <button 
+                  onClick={() => onShowPaywall && onShowPaywall()}
+                  className="flex flex-col items-center justify-center bg-gradient-to-r from-yellow-500 to-orange-500 text-black font-black text-xl px-6 py-3 rounded-xl shadow-lg hover:scale-105 transition-transform w-full"
+                >
                   <span>💳 立即解鎖大醉翁 PRO</span>
-                  <span className="text-xs font-bold opacity-80 mt-1">(僅需約 1 杯 Shot 的價格)</span>
-                </a>
+                  <span className="text-xs font-bold opacity-80 mt-1">支援 Apple/Google Pay，綁定帳號永久可用</span>
+                </button>
               </div>
             ) : (
               <button className="w-full bg-gradient-to-r from-cyan-600 to-blue-600 hover:scale-105 transition-transform text-white font-black tracking-widest py-4 rounded-xl text-xl shadow-[0_0_20px_rgba(8,145,178,0.6)]" onClick={onRestart}>🔄 再戰一局</button>
@@ -963,7 +973,7 @@ export default function GameBoard({ initialPlayers, initialTime, isPremium, onRe
           <span className="text-xs font-bold text-gray-400">{meltdownCount} / {MELTDOWN_MAX}</span>
         </div>
         <div className="w-full h-1.5 md:h-2 bg-gray-900 rounded-full border border-gray-800 overflow-hidden shadow-[inset_0_1px_5px_rgba(0,0,0,0.5)]">
-          <div className={`h-full transition-all duration-500 ease-out ${meltdownCount >= MELTDOWN_MAX - 2 ? 'bg-red-500 animate-pulse' : 'bg-gradient-to-r from-yellow-500 to-orange-500'}`} style={{ width: `${(meltdownCount / MELTDOWN_MAX) * 100}%` }}></div>
+          <div className={`h-full transition-all duration-500 ease-out ${meltdownCount >= MELTDOWN_MAX / 2 ? 'bg-red-500 animate-pulse' : 'bg-gradient-to-r from-yellow-500 to-orange-500'}`} style={{ width: `${(meltdownCount / MELTDOWN_MAX) * 100}%` }}></div>
         </div>
         
         {/* 活躍事件提示區 (附帶查看詳情小按鈕) */}
@@ -1092,7 +1102,7 @@ export default function GameBoard({ initialPlayers, initialTime, isPremium, onRe
         </div>
       )}
 
-      {/* 💸 免費版逼課攔截 Modal */}
+      {/* 💸 免費版攔截 Modal (直接呼叫 onShowPaywall) */}
       {showFomoModal && previewEvent && (
         <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/95 backdrop-blur-md p-4">
           <div className="bg-gradient-to-b from-yellow-950/80 to-[#07020d] border border-yellow-500/50 w-full max-w-md rounded-3xl p-8 flex flex-col items-center text-center shadow-[0_0_50px_rgba(234,179,8,0.2)]">
@@ -1107,9 +1117,12 @@ export default function GameBoard({ initialPlayers, initialTime, isPremium, onRe
               <div className="mt-3 text-red-500/80 text-xs font-black uppercase">[ 🔒 PRO VERSION REQUIRED ]</div>
             </div>
 
-            <a href="https://buymeacoffee.com/thomas0982/e/584709" className="bg-gradient-to-r from-yellow-500 via-orange-400 to-yellow-500 text-black font-black text-lg px-6 py-4 rounded-2xl w-full mb-4 flex items-center justify-center transition-transform hover:scale-105">
-              💳 支付 HK$40 解鎖 PRO
-            </a>
+            <button 
+              onClick={() => { onShowPaywall && onShowPaywall(); closeFomoAndSkip(); }}
+              className="bg-gradient-to-r from-yellow-500 via-orange-400 to-yellow-500 text-black font-black text-lg px-6 py-4 rounded-2xl w-full mb-4 flex items-center justify-center transition-transform hover:scale-105"
+            >
+              💳 立即解鎖 PRO
+            </button>
             <button onClick={closeFomoAndSkip} className="text-gray-500 hover:text-gray-400 text-sm font-bold underline underline-offset-4">
               無奈跳過，繼續平淡的遊戲
             </button>

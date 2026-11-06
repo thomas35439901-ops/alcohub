@@ -1,8 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import GameBoard from './GameBoard'; 
+import GameBoard from './GameBoard';
+import { useProAuth } from './hooks/useProAuth';
+import PaywallModal from './components/PaywallModal';
 
 const NeonGlow = ({ top, left, color, scale = 1 }) => (
-  <div className="absolute pointer-events-none opacity-20 blur-[100px] animate-pulse" style={{ top, left, transform: `scale(${scale})` }}>
+  <div
+    className="absolute pointer-events-none opacity-20 blur-[100px] animate-pulse"
+    style={{ top, left, transform: `scale(${scale})` }}
+  >
     <div className={`w-[400px] h-[400px] rounded-full ${color}`}></div>
   </div>
 );
@@ -21,44 +26,29 @@ const PRESET_COLORS = [
 export default function App() {
   const [isGameStarted, setIsGameStarted] = useState(false);
   const [agreed, setAgreed] = useState(false);
-  
-  // ==========================================
-  // 👑 PRO 版解鎖狀態管理 (雙保險機制)
-  // ==========================================
-  const [isPremium, setIsPremium] = useState(false);
+  const [showPaywall, setShowPaywall] = useState(false);
 
+  // ==========================================
+  // 👑 使用 Supabase + Stripe PRO 權限 Hook
+  // ==========================================
+  const auth = useProAuth();
+  const { user, isPro, loading: authLoading, loginWithGoogle, logout, refreshProfile } = auth;
+
+  // 處理付款成功回跳
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
-    
-    // 🛡️ 加入 try...catch 防護罩，防止 Safari 無痕模式引發白畫面崩潰
-    try {
-      // 保險一：偵測金流平台跳轉回來的 ?vip=success
-      if (urlParams.get('vip') === 'success') {
-        setIsPremium(true);
-        localStorage.setItem('alcohub_premium', 'true');
-        
-        // 魔法瞬間：擦掉網址上的特殊參數，避免玩家複製
-        window.history.replaceState({}, document.title, window.location.pathname);
-        
-        setTimeout(() => {
-          alert("🎉 付款成功！大醉翁 PRO 已為您自動解鎖！\n盡情享受血流成河的派對吧！");
-        }, 500);
-      } 
-      // 保險二：如果沒有參數，檢查瀏覽器是否存有解鎖記憶
-      else if (localStorage.getItem('alcohub_premium') === 'true') {
-        setIsPremium(true);
-      }
-    } catch (error) {
-      console.warn("Safari 私密瀏覽模式阻擋了本地記憶功能，已安全攔截，不影響免費版遊玩！");
+    if (urlParams.get('payment') === 'success') {
+      window.history.replaceState({}, document.title, window.location.pathname);
+      refreshProfile();
+      setTimeout(() => {
+        alert("🎉 付款成功！大醉翁 PRO 權限已自動開通！\n盡情享受血流成河的派對吧！");
+      }, 500);
+    } else if (urlParams.get('payment') === 'cancelled') {
+      window.history.replaceState({}, document.title, window.location.pathname);
     }
-  }, []);
+  }, [refreshProfile]);
 
-  // 升級版：無後端安全恢復購買邏輯
-  const handleRestorePurchase = () => {
-    alert("📩 恢復購買說明：\n\n請前往您的電子信箱，尋找來自 Buy Me a Coffee 的「付款確認信」。\n\n只要在新設備上打開該信件，並點擊信中的【解鎖遊戲連結】，即可瞬間恢復您的 PRO 權限！");
-  };
-
-  const [timeMinutes, setTimeMinutes] = useState(10); 
+  const [timeMinutes, setTimeMinutes] = useState(10);
 
   const [players, setPlayers] = useState([
     { id: 1, name: "玩家一", icon: "🍷", hexColor: PRESET_COLORS[0].hex, color: PRESET_COLORS[0].twClass, position: 0, state: 'NORMAL', areas: 0, bottles: 0, inventory: [] },
@@ -82,11 +72,12 @@ export default function App() {
   };
 
   const addPlayer = () => {
-    if (!isPremium && players.length >= 4) {
-      return alert("🔒 試玩版最多支援 4 人！升級 PRO 即可解鎖 8 人大亂鬥！");
+    if (!isPro && players.length >= 4) {
+      setShowPaywall(true);
+      return;
     }
     if (players.length >= 8) return alert("最多只能 8 人遊玩！");
-    
+
     const usedHexes = players.map(p => p.hexColor);
     const availableColor = PRESET_COLORS.find(c => !usedHexes.includes(c.hex)) || PRESET_COLORS[0];
     const newId = Math.max(...players.map(p => p.id), 0) + 1;
@@ -101,8 +92,19 @@ export default function App() {
     setPlayers(prev => prev.filter(p => p.id !== id));
   };
 
+  // ==========================================
+  // 渲染遊戲棋盤 (傳入 onShowPaywall 屬性)
+  // ==========================================
   if (isGameStarted) {
-    return <GameBoard initialPlayers={players} initialTime={timeMinutes * 60} isPremium={isPremium} onRestart={() => setIsGameStarted(false)} />;
+    return (
+      <GameBoard
+        initialPlayers={players}
+        initialTime={timeMinutes * 60}
+        isPremium={isPro}
+        onRestart={() => setIsGameStarted(false)}
+        onShowPaywall={() => setShowPaywall(true)}
+      />
+    );
   }
 
   return (
@@ -110,9 +112,46 @@ export default function App() {
       <NeonGlow top="5%" left="20%" color="bg-purple-700" scale={1.5} />
       <NeonGlow top="50%" left="70%" color="bg-cyan-700" scale={1.5} />
 
+      {/* 頂部會員狀態列 */}
+      <div className="z-20 w-full max-w-4xl flex justify-end items-center gap-3 mb-2">
+        {authLoading ? (
+          <span className="text-xs text-gray-500">載入中...</span>
+        ) : user ? (
+          <div className="flex items-center gap-3 bg-zinc-900/80 border border-zinc-700 px-3 py-1.5 rounded-full text-xs">
+            <span className="text-gray-300 font-medium truncate max-w-[140px] md:max-w-[200px]">
+              {user.email}
+            </span>
+            {isPro ? (
+              <span className="bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-full font-bold">
+                👑 PRO
+              </span>
+            ) : (
+              <button
+                onClick={() => setShowPaywall(true)}
+                className="text-amber-400 hover:text-amber-300 underline font-bold"
+              >
+                升級 PRO
+              </button>
+            )}
+            <button
+              onClick={logout}
+              className="text-zinc-400 hover:text-red-400 ml-1 transition"
+            >
+              登出
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={loginWithGoogle}
+            className="flex items-center gap-1.5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-600 px-3.5 py-1.5 rounded-full text-xs font-bold text-gray-200 transition shadow"
+          >
+            <span>🔑 Google 登入</span>
+          </button>
+        )}
+      </div>
+
       <div className="z-10 w-full max-w-4xl flex flex-col items-center relative pb-16">
-        
-        <h1 className="text-5xl md:text-7xl font-black tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-cyan-400 mb-2 drop-shadow-lg text-center mt-6">
+        <h1 className="text-5xl md:text-7xl font-black tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-cyan-400 mb-2 drop-shadow-lg text-center mt-4">
           大醉翁
         </h1>
         <p className="text-gray-400 tracking-widest mb-4 font-bold text-sm md:text-lg">
@@ -120,18 +159,18 @@ export default function App() {
         </p>
 
         {/* 👑 PRO 徽章顯示 */}
-        {isPremium && (
+        {isPro && (
           <div className="bg-gradient-to-r from-yellow-500 to-orange-500 text-black font-black px-6 py-2 rounded-full mb-8 shadow-[0_0_20px_rgba(234,179,8,0.5)] animate-pulse">
             👑 PRO 專業版已解鎖（全功能開放）
           </div>
         )}
-        {!isPremium && <div className="mb-6"></div>}
+        {!isPro && <div className="mb-6"></div>}
 
         {/* 玩家設定區塊 */}
         <div className="w-full bg-[#12051f]/80 backdrop-blur-md border border-purple-500/30 rounded-2xl p-6 shadow-[0_0_30px_rgba(168,85,247,0.15)] mb-8">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-2xl font-black text-white flex items-center gap-2">
-              👥 玩家設定 <span className="text-sm text-gray-400 font-normal">({players.length}/{isPremium ? '8' : '4'} 人)</span>
+              👥 玩家設定 <span className="text-sm text-gray-400 font-normal">({players.length}/{isPro ? '8' : '4'} 人)</span>
             </h2>
             <button onClick={addPlayer} className="bg-purple-600 hover:bg-purple-500 px-4 py-2 rounded-lg font-bold transition-colors shadow-md">
               + 新增玩家
@@ -176,99 +215,70 @@ export default function App() {
               <button 
                 key={t} 
                 onClick={() => {
-                  if (!isPremium && t > 10) {
-                    return alert(`🔒 ${t} 分鐘屬於長局模式！請解鎖 PRO 體驗完整派對！`);
+                  if (!isPro && t > 10) {
+                    setShowPaywall(true);
+                    return;
                   }
                   setTimeMinutes(t);
                 }} 
                 className={`px-5 py-3 rounded-xl font-black text-lg transition-all border-2 relative overflow-hidden
                   ${timeMinutes === t ? 'border-cyan-400 bg-cyan-900/60 text-white shadow-[0_0_15px_rgba(34,211,238,0.5)]' : 'border-gray-700 bg-gray-800 text-gray-400'}
-                  ${!isPremium && t > 10 ? 'opacity-60 grayscale cursor-not-allowed hover:border-red-500' : 'hover:border-gray-500'}
+                  ${!isPro && t > 10 ? 'opacity-60 grayscale cursor-not-allowed hover:border-red-500' : 'hover:border-gray-500'}
                 `}
               >
                 {t} 分鐘 
-                {!isPremium && t > 10 && <span className="absolute -top-1 -right-1 text-sm bg-red-600 text-white px-1.5 py-0.5 rounded-bl-lg">PRO</span>}
-                {!isPremium && t === 10 && <span className="absolute -top-1 -right-1 text-[10px] bg-green-600 text-white px-1 py-0.5 rounded-bl-lg">免費試玩</span>}
+                {!isPro && t > 10 && <span className="absolute -top-1 -right-1 text-sm bg-red-600 text-white px-1.5 py-0.5 rounded-bl-lg">PRO</span>}
+                {!isPro && t === 10 && <span className="absolute -top-1 -right-1 text-[10px] bg-green-600 text-white px-1 py-0.5 rounded-bl-lg">免費試玩</span>}
               </button>
             ))}
           </div>
         </div>
 
-        {/* 👑 PRO 解鎖引導 (強化版好處展示) */}
-        {!isPremium && (
+        {/* 👑 PRO 解鎖引導卡片 */}
+        {!isPro && (
           <div className="w-full bg-gradient-to-r from-yellow-950/60 via-purple-950/50 to-orange-950/60 border-2 border-yellow-500/60 rounded-3xl p-6 md:p-8 shadow-[0_0_50px_rgba(234,179,8,0.25)] mb-8 flex flex-col items-center">
-            
             <div className="flex items-center gap-2 mb-2">
               <span className="text-2xl">👑</span>
               <h2 className="text-2xl md:text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 via-orange-300 to-yellow-500">
                 升級大醉翁 PRO 完整版
               </h2>
             </div>
-            
-            <p className="text-gray-300 text-sm md:text-base font-bold mb-6 text-center">
-              告別 10 分鐘試玩斷點，一次解鎖所有血流成河的邪惡機制！
-            </p>
+            <p className="text-gray-300 text-sm md:text-base font-bold mb-6 text-center">告別 10 分鐘試玩斷點，一次解鎖所有血流成河的邪惡機制！</p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 w-full mb-8">
               <div className="bg-black/50 border border-yellow-500/30 rounded-xl p-3.5 flex items-start gap-3">
                 <span className="text-2xl bg-yellow-500/20 p-2 rounded-lg shrink-0">⚔️</span>
-                <div>
-                  <h4 className="font-black text-yellow-300 text-sm md:text-base">自由搶奪對決</h4>
-                  <p className="text-xs text-gray-400 mt-0.5">踩中他人領地可主動發起 PK 搶奪，勝者奪地、敗者喝雙倍！</p>
-                </div>
+                <div><h4 className="font-black text-yellow-300 text-sm md:text-base">自由搶奪對決</h4><p className="text-xs text-gray-400 mt-0.5">踩中他人領地可主動發起 PK 搶奪，勝者奪地、敗者喝雙倍！</p></div>
               </div>
-
               <div className="bg-black/50 border border-yellow-500/30 rounded-xl p-3.5 flex items-start gap-3">
                 <span className="text-2xl bg-yellow-500/20 p-2 rounded-lg shrink-0">⏳</span>
-                <div>
-                  <h4 className="font-black text-yellow-300 text-sm md:text-base">長局模式 (最高 60 分鐘)</h4>
-                  <p className="text-xs text-gray-400 mt-0.5">解鎖 30 / 45 / 60 分鐘超長對局，支援最多 8 人同時狂歡。</p>
-                </div>
+                <div><h4 className="font-black text-yellow-300 text-sm md:text-base">長局模式 (最高 60 分鐘)</h4><p className="text-xs text-gray-400 mt-0.5">解鎖 30 / 45 / 60 分鐘超長對局，支援最多 8 人同時狂歡。</p></div>
               </div>
-
               <div className="bg-black/50 border border-yellow-500/30 rounded-xl p-3.5 flex items-start gap-3">
                 <span className="text-2xl bg-yellow-500/20 p-2 rounded-lg shrink-0">🎮</span>
-                <div>
-                  <h4 className="font-black text-yellow-300 text-sm md:text-base">13 款派對小遊戲全解鎖</h4>
-                  <p className="text-xs text-gray-400 mt-0.5">追加真心話大冒險、射龍門、倒楣A、Never Have I Ever 等高恥度玩法。</p>
-                </div>
+                <div><h4 className="font-black text-yellow-300 text-sm md:text-base">13 款派對小遊戲全解鎖</h4><p className="text-xs text-gray-400 mt-0.5">追加真心話大冒險、射龍門、倒楣A 等高恥度玩法。</p></div>
               </div>
-
               <div className="bg-black/50 border border-yellow-500/30 rounded-xl p-3.5 flex items-start gap-3">
                 <span className="text-2xl bg-yellow-500/20 p-2 rounded-lg shrink-0">💥</span>
-                <div>
-                  <h4 className="font-black text-yellow-300 text-sm md:text-base">暗黑破壞卡庫</h4>
-                  <p className="text-xs text-gray-400 mt-0.5">解鎖摧毀卡（炸毀地產）、國王卡（絕對命令）、真心話鎖定等搞事神卡。</p>
-                </div>
+                <div><h4 className="font-black text-yellow-300 text-sm md:text-base">暗黑破壞卡庫</h4><p className="text-xs text-gray-400 mt-0.5">解鎖摧毀卡（炸毀地產）、國王卡（絕對命令）、全域災難。</p></div>
               </div>
             </div>
 
-            <a 
-              href="https://buymeacoffee.com/thomas0982/e/584709" 
-              className="bg-gradient-to-r from-yellow-500 via-orange-400 to-yellow-500 hover:scale-105 transition-transform text-black font-black text-xl px-8 py-4 rounded-2xl shadow-[0_0_30px_rgba(234,179,8,0.5)] w-full max-w-md flex flex-col items-center justify-center"
+            <button 
+              onClick={() => setShowPaywall(true)}
+              className="bg-gradient-to-r from-yellow-500 via-orange-400 to-yellow-500 hover:scale-105 transition-transform text-black font-black text-xl px-8 py-4 rounded-2xl shadow-[0_0_30px_rgba(234,179,8,0.5)] w-full max-w-md flex flex-col items-center justify-center cursor-pointer"
             >
-              <span className="tracking-wide">💳 立即自動解鎖 PRO 版</span>
-              <span className="text-xs font-bold opacity-80 mt-1">約一杯 Shot 的價格 · 本裝置自動生效</span>
-            </a>
-            
-            {/* 防呆提示 (如果你已經在 BMAC 改回 40 整數，這裡也可以保留作為提醒) */}
-            <div className="mt-3 bg-red-900/50 border border-red-500/50 px-4 py-2 rounded-lg">
-              <p className="text-sm text-yellow-300 font-black animate-pulse">
-                💡 結帳提示：若遇金額欄位空白，請直接輸入「40」即可順利結帳！
-              </p>
-            </div>
-            
-            <p className="text-[11px] text-gray-400 mt-3 font-bold">付款完成後將自動跳轉回本頁並解鎖，無須手動記帳號密碼</p>
+              <span className="tracking-wide">💳 立即解鎖 PRO 版（HK$28 起）</span>
+              <span className="text-xs font-bold opacity-80 mt-1">支援 Apple Pay / Google Pay / 信用卡 · 綁定帳號永久可用</span>
+            </button>
           </div>
         )}
 
         {/* ⚠️ 安全免責聲明與開始按鈕區塊 */}
         <div className="w-full bg-[#11131a]/95 backdrop-blur-md border border-gray-700/60 rounded-2xl p-6 md:p-8 shadow-2xl mb-6 flex flex-col gap-5">
-          
           <h3 className="text-xl font-black flex items-center gap-2 text-red-400">
             <span className="text-yellow-400 text-2xl">⚠️</span> 安全免責聲明
           </h3>
-
           <div className="bg-[#08090d] border border-gray-800 rounded-lg p-5 h-44 overflow-y-auto text-sm md:text-base text-gray-400 space-y-2 font-bold leading-relaxed scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-transparent">
             <ol className="list-decimal pl-5 space-y-2 marker:text-gray-500">
               <li>本遊戲包含飲酒懲罰機制，僅限達到法定飲酒年齡之成年人遊玩。</li>
@@ -278,7 +288,6 @@ export default function App() {
               <li>遊戲開發者與平台對玩家因遊玩本遊戲而產生之任何健康、法律或財產後果概不負責。</li>
             </ol>
           </div>
-
           <label className="flex items-center gap-3 cursor-pointer group w-max my-1">
             <div className={`w-6 h-6 flex items-center justify-center border-2 rounded-[4px] transition-all ${agreed ? 'bg-transparent border-gray-400' : 'bg-transparent border-gray-500 group-hover:border-gray-400'}`}>
               {agreed && <span className="text-gray-200 text-sm font-black drop-shadow-md">✓</span>}
@@ -288,31 +297,23 @@ export default function App() {
               我已閱讀並同意上述條款
             </span>
           </label>
-
           <button 
             onClick={() => agreed && setIsGameStarted(true)} 
             disabled={!agreed}
-            className={`w-full py-4 rounded-xl font-black text-xl transition-all duration-300 ${
-              agreed 
-                ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-[0_0_20px_rgba(79,70,229,0.5)] hover:scale-[1.02] cursor-pointer border border-blue-500/50' 
-                : 'bg-[#1c202a] text-gray-500 cursor-not-allowed border border-gray-700/50'
-            }`}
+            className={`w-full py-4 rounded-xl font-black text-xl transition-all duration-300 ${agreed ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-[0_0_20px_rgba(79,70,229,0.5)] hover:scale-[1.02] cursor-pointer border border-blue-500/50' : 'bg-[#1c202a] text-gray-500 cursor-not-allowed border border-gray-700/50'}`}
           >
             {agreed ? "🚀 開始遊戲" : "請先勾選同意上述條款"}
           </button>
         </div>
 
-        {/* 恢復購買按鈕 (雙保險機制) */}
-        {!isPremium && (
-          <button 
-            onClick={handleRestorePurchase}
-            className="text-gray-500 hover:text-gray-300 text-sm font-bold underline underline-offset-4 mb-8 transition-colors"
-          >
-            🔄 已經付款過？點此恢復購買
-          </button>
-        )}
-
       </div>
+
+      {/* 👑 PRO 購買彈窗 */}
+      <PaywallModal
+        isOpen={showPaywall}
+        onClose={() => setShowPaywall(false)}
+        auth={auth}
+      />
     </div>
   );
 }
