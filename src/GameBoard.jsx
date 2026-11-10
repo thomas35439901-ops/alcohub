@@ -893,7 +893,7 @@ export default function GameBoard(props) {
         return (
           <>
             <div className="text-6xl mb-4">🚩</div>
-            <h2 className="text-3xl font-black text-yellow-400 mb-4">起點派對</h2>
+            <h2 className="text-3xl font-black text-yellow-400 mb-4">起點派推</h2>
             <p className="text-lg text-gray-300 mb-8">你可以任意分配 <span className="text-white font-bold text-2xl">3 口酒</span> 給全場任何人！<br />(可集中或分散給不同人)</p>
             <button className="w-full bg-yellow-600 text-white font-bold py-4 rounded-xl text-xl" onClick={nextTurn}>✅ 分配完畢</button>
           </>
@@ -1052,22 +1052,38 @@ export default function GameBoard(props) {
 
       {/* 頂部資訊列 (計時器與公杯) */}
       <div className="h-[40px] md:h-[50px] shrink-0 px-2 md:px-6 flex justify-between items-center text-sm md:text-base font-bold z-50 bg-black/50 border-b border-white/10 backdrop-blur-md">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1.5 md:gap-3">
           <button
             onClick={handleRestartOrExit}
-            className="rounded-lg border border-white/15 bg-white/5 px-2.5 py-1 text-xs text-gray-300 hover:bg-white/10 hover:text-white transition"
+            className="rounded-lg border border-white/15 bg-white/5 px-2 md:px-2.5 py-1 text-[10px] md:text-xs text-gray-300 hover:bg-white/10 hover:text-white transition shrink-0"
             title="結束本局返回設定"
           >
             ← 離開
           </button>
-          <div className={`flex items-center gap-1.5 ${timeLeft <= 300 ? 'text-red-500 animate-pulse' : 'text-cyan-400'}`}>
-            <span className="text-lg md:text-xl">⏱️</span>
-            <span className="font-mono tracking-wider font-bold text-sm md:text-base">{isMinigameActive ? "⏸ 暫停中" : formatTime(timeLeft)}</span>
+
+          {/* 👑 新增：遊戲內的升級按鈕與 PRO 狀態顯示 */}
+          {isPremium ? (
+            <span className="rounded-md bg-yellow-500/20 border border-yellow-500/50 px-2 md:px-2.5 py-0.5 md:py-1 text-[10px] md:text-xs font-bold text-yellow-400 shrink-0">
+              👑 PRO
+            </span>
+          ) : (
+            <button
+              onClick={() => handleTriggerPaywall && handleTriggerPaywall()}
+              className="rounded-md bg-gradient-to-r from-yellow-500 to-orange-500 px-2 md:px-3 py-1 text-[10px] md:text-xs font-black text-black shadow-[0_0_10px_rgba(234,179,8,0.4)] hover:scale-105 transition-transform shrink-0 animate-pulse"
+            >
+              👑 升級 PRO
+            </button>
+          )}
+
+          <div className={`flex items-center gap-1 md:gap-1.5 ml-1 ${timeLeft <= 300 ? 'text-red-500 animate-pulse' : 'text-cyan-400'} shrink-0`}>
+            <span className="text-base md:text-xl">⏱️</span>
+            <span className="font-mono tracking-wider font-bold text-xs md:text-base">{isMinigameActive ? "⏸ 暫停" : formatTime(timeLeft)}</span>
           </div>
         </div>
-        <div className="flex items-center gap-2 md:gap-3 text-amber-500 font-bold text-sm md:text-base">
+        
+        <div className="flex items-center gap-1.5 md:gap-3 text-amber-500 font-bold text-xs md:text-base shrink-0">
           <span>🍺 公杯：{publicCup}/{maxCup}</span>
-          <div className="w-20 md:w-32 h-2.5 md:h-3 bg-gray-900 rounded-full overflow-hidden relative shadow-[inset_0_0_10px_rgba(0,0,0,1)]">
+          <div className="w-16 md:w-32 h-2.5 md:h-3 bg-gray-900 rounded-full overflow-hidden relative shadow-[inset_0_0_10px_rgba(0,0,0,1)]">
             {publicCup > 0 && (
               <div className="absolute top-0 left-0 h-full bg-gradient-to-r from-amber-600 to-yellow-400 transition-all duration-500 ease-out shadow-[0_0_15px_#f59e0b]" style={{ width: `${(publicCup / maxCup) * 100}%` }}></div>
             )}
