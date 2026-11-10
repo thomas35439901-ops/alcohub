@@ -1,318 +1,432 @@
 import React, { useState, useEffect } from 'react';
 import GameBoard from './GameBoard';
-import { useProAuth } from './hooks/useProAuth';
 import PaywallModal from './components/PaywallModal';
+import { useProAuth } from './hooks/useProAuth';
+import {
+  saveGameSnapshot,
+  loadGameSnapshot,
+  consumeUpgradeBonus,
+  clearGameSnapshot,
+} from './utils/gameStorage';
 
-const NeonGlow = ({ top, left, color, scale = 1 }) => (
-  <div
-    className="absolute pointer-events-none opacity-20 blur-[100px] animate-pulse"
-    style={{ top, left, transform: `scale(${scale})` }}
-  >
-    <div className={`w-[400px] h-[400px] rounded-full ${color}`}></div>
-  </div>
-);
+const AVATAR_OPTIONS = ['🍷', '🍺', '🍸', '🍹', '🥃', '🍾', '🥂', '🍻'];
+const COLOR_OPTIONS = [
+  '#ef4444', // 紅
+  '#3b82f6', // 藍
+  '#10b981', // 綠
+  '#f59e0b', // 黃
+  '#a855f7', // 紫
+  '#f97316', // 橘
+  '#06b6d4', // 青
+  '#ec4899', // 粉
+];
 
-const PRESET_COLORS = [
-  { name: '紅', hex: '#ef4444', twClass: 'border-red-500 text-red-400 bg-red-950' },
-  { name: '藍', hex: '#3b82f6', twClass: 'border-blue-500 text-blue-400 bg-blue-950' },
-  { name: '綠', hex: '#22c55e', twClass: 'border-green-500 text-green-400 bg-green-950' },
-  { name: '黃', hex: '#eab308', twClass: 'border-yellow-500 text-yellow-400 bg-yellow-950' },
-  { name: '紫', hex: '#a855f7', twClass: 'border-purple-500 text-purple-400 bg-purple-950' },
-  { name: '橙', hex: '#f97316', twClass: 'border-orange-500 text-orange-400 bg-orange-950' },
-  { name: '青', hex: '#06b6d4', twClass: 'border-cyan-500 text-cyan-400 bg-cyan-950' },
-  { name: '粉', hex: '#ec4899', twClass: 'border-pink-500 text-pink-400 bg-pink-950' },
+const DEFAULT_PLAYERS = [
+  { id: 1, name: '玩家一', avatar: '🍷', color: '#ef4444' },
+  { id: 2, name: '玩家二', avatar: '🍺', color: '#3b82f6' },
+  { id: 3, name: '玩家三', avatar: '🍸', color: '#10b981' },
+  { id: 4, name: '玩家四', avatar: '🍹', color: '#f59e0b' },
 ];
 
 export default function App() {
-  const [isGameStarted, setIsGameStarted] = useState(false);
-  const [agreed, setAgreed] = useState(false);
+  const { user, isPro, loginWithGoogle, logout, refreshProfile } = useProAuth();
   const [showPaywall, setShowPaywall] = useState(false);
 
-  // ==========================================
-  // 👑 使用 Supabase + Stripe PRO 權限 Hook
-  // ==========================================
-  const auth = useProAuth();
-  const { user, isPro, loading: authLoading, loginWithGoogle, logout, refreshProfile } = auth;
+  // 初始化時優先從 localStorage 恢復牌局
+  const [players, setPlayers] = useState(() => {
+    const saved = loadGameSnapshot();
+    return saved?.players?.length ? saved.players : DEFAULT_PLAYERS;
+  });
 
-  // 處理付款成功回跳
+  const [duration, setDuration] = useState(() => {
+    const saved = loadGameSnapshot();
+    return saved?.duration || 10;
+  });
+
+  const [isGameStarted, setIsGameStarted] = useState(() => {
+    const saved = loadGameSnapshot();
+    return Boolean(saved?.isGameStarted);
+  });
+
+  // 每次玩家設定、時長或開局狀態改變時，自動寫入 localStorage
+  useEffect(() => {
+    saveGameSnapshot({
+      players,
+      duration,
+      isGameStarted,
+    });
+  }, [players, duration, isGameStarted]);
+
+  // 檢測從 Stripe 結帳成功返回 (?payment=success)
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('payment') === 'success') {
-      window.history.replaceState({}, document.title, window.location.pathname);
+      const upgraded = consumeUpgradeBonus();
+      const latestSnapshot = loadGameSnapshot();
+
+      if (upgraded && latestSnapshot) {
+        setDuration(latestSnapshot.duration || 30);
+        if (latestSnapshot.isGameStarted) {
+          setIsGameStarted(true);
+        }
+      }
       refreshProfile();
-      setTimeout(() => {
-        alert("🎉 付款成功！大醉翁 PRO 權限已自動開通！\n盡情享受血流成河的派對吧！");
-      }, 500);
-    } else if (urlParams.get('payment') === 'cancelled') {
+      // 清除網址上的 ?payment=success 參數，避免重整時重複加時
       window.history.replaceState({}, document.title, window.location.pathname);
     }
   }, [refreshProfile]);
 
-  const [timeMinutes, setTimeMinutes] = useState(10);
+  const maxPlayers = isPro ? 8 : 4;
 
-  const [players, setPlayers] = useState([
-    { id: 1, name: "玩家一", icon: "🍷", hexColor: PRESET_COLORS[0].hex, color: PRESET_COLORS[0].twClass, position: 0, state: 'NORMAL', areas: 0, bottles: 0, inventory: [] },
-    { id: 2, name: "玩家二", icon: "🍺", hexColor: PRESET_COLORS[1].hex, color: PRESET_COLORS[1].twClass, position: 0, state: 'NORMAL', areas: 0, bottles: 0, inventory: [] },
-    { id: 3, name: "玩家三", icon: "🍸", hexColor: PRESET_COLORS[2].hex, color: PRESET_COLORS[2].twClass, position: 0, state: 'NORMAL', areas: 0, bottles: 0, inventory: [] },
-    { id: 4, name: "玩家四", icon: "🍹", hexColor: PRESET_COLORS[3].hex, color: PRESET_COLORS[3].twClass, position: 0, state: 'NORMAL', areas: 0, bottles: 0, inventory: [] }
-  ]);
-
-  const handleColorChange = (playerId, newHex) => {
-    const isColorUsed = players.some(p => p.id !== playerId && p.hexColor === newHex);
-    if (isColorUsed) {
-      alert("⚠️ 該顏色已被使用，請選擇其他顏色！");
+  const handleAddPlayer = () => {
+    if (players.length >= maxPlayers) {
+      if (!isPro) {
+        setShowPaywall(true);
+      }
       return;
     }
-    const colorObj = PRESET_COLORS.find(c => c.hex === newHex);
-    setPlayers(prev => prev.map(p => p.id === playerId ? { ...p, hexColor: newHex, color: colorObj.twClass } : p));
+    const nextIndex = players.length;
+    const newPlayer = {
+      id: Date.now(),
+      name: `玩家${['一', '二', '三', '四', '五', '六', '七', '八'][nextIndex] || nextIndex + 1}`,
+      avatar: AVATAR_OPTIONS[nextIndex % AVATAR_OPTIONS.length],
+      color: COLOR_OPTIONS[nextIndex % COLOR_OPTIONS.length],
+    };
+    setPlayers([...players, newPlayer]);
   };
 
-  const handlePlayerChange = (id, field, value) => {
-    setPlayers(prev => prev.map(p => p.id === id ? { ...p, [field]: value } : p));
+  const handleRemovePlayer = (id) => {
+    if (players.length <= 2) {
+      alert('最少需要 2 位玩家才能開始酒局！');
+      return;
+    }
+    setPlayers(players.filter((p) => p.id !== id));
   };
 
-  const addPlayer = () => {
-    if (!isPro && players.length >= 4) {
+  const handleUpdatePlayer = (id, field, value) => {
+    setPlayers(
+      players.map((p) => (p.id === id ? { ...p, [field]: value } : p))
+    );
+  };
+
+  const handleCycleAvatar = (id, currentAvatar) => {
+    const idx = AVATAR_OPTIONS.indexOf(currentAvatar);
+    const nextAvatar = AVATAR_OPTIONS[(idx + 1) % AVATAR_OPTIONS.length];
+    handleUpdatePlayer(id, 'avatar', nextAvatar);
+  };
+
+  const handleSelectDuration = (mins) => {
+    if (mins > 10 && !isPro) {
       setShowPaywall(true);
       return;
     }
-    if (players.length >= 8) return alert("最多只能 8 人遊玩！");
-
-    const usedHexes = players.map(p => p.hexColor);
-    const availableColor = PRESET_COLORS.find(c => !usedHexes.includes(c.hex)) || PRESET_COLORS[0];
-    const newId = Math.max(...players.map(p => p.id), 0) + 1;
-    setPlayers(prev => [
-      ...prev,
-      { id: newId, name: `玩家${newId}`, icon: "🍻", hexColor: availableColor.hex, color: availableColor.twClass, position: 0, state: 'NORMAL', areas: 0, bottles: 0, inventory: [] }
-    ]);
+    setDuration(mins);
   };
 
-  const removePlayer = (id) => {
-    if (players.length <= 2) return alert("最少需要 2 名玩家！");
-    setPlayers(prev => prev.filter(p => p.id !== id));
+  const handleStartNewGame = () => {
+    // 開始新局時清除上一局殘留的棋盤座標與舊時間，但保留當前玩家與時長
+    clearGameSnapshot();
+    saveGameSnapshot({
+      players,
+      duration,
+      isGameStarted: true,
+      timeLeft: duration * 60,
+    });
+    setIsGameStarted(true);
   };
 
-  // ==========================================
-  // 渲染遊戲棋盤 (傳入 onShowPaywall 屬性)
-  // ==========================================
+  const handleExitGame = () => {
+    clearGameSnapshot();
+    setIsGameStarted(false);
+  };
+
+  // 若遊戲已開始，直接渲染棋盤組件
   if (isGameStarted) {
     return (
-      <GameBoard
-        initialPlayers={players}
-        initialTime={timeMinutes * 60}
-        isPremium={isPro}
-        onRestart={() => setIsGameStarted(false)}
-        onShowPaywall={() => setShowPaywall(true)}
-      />
+      <>
+        <GameBoard
+          players={players}
+          duration={duration}
+          isPro={isPro}
+          onOpenPaywall={() => setShowPaywall(true)}
+          onExit={handleExitGame}
+          onBack={handleExitGame}
+        />
+        <PaywallModal
+          isOpen={showPaywall}
+          onClose={() => setShowPaywall(false)}
+          user={user}
+          onLogin={loginWithGoogle}
+        />
+      </>
     );
   }
 
   return (
-    <div className="relative min-h-screen bg-[#07020d] text-white overflow-x-hidden font-sans p-4 md:p-8 flex flex-col items-center">
-      <NeonGlow top="5%" left="20%" color="bg-purple-700" scale={1.5} />
-      <NeonGlow top="50%" left="70%" color="bg-cyan-700" scale={1.5} />
-
-      {/* 頂部會員狀態列 */}
-      <div className="z-20 w-full max-w-4xl flex justify-end items-center gap-3 mb-2">
-        {authLoading ? (
-          <span className="text-xs text-gray-500">載入中...</span>
-        ) : user ? (
-          <div className="flex items-center gap-3 bg-zinc-900/80 border border-zinc-700 px-3 py-1.5 rounded-full text-xs">
-            <span className="text-gray-300 font-medium truncate max-w-[140px] md:max-w-[200px]">
-              {user.email}
-            </span>
-            {isPro ? (
-              <span className="bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-full font-bold">
-                👑 PRO
-              </span>
-            ) : (
+    <div className="min-h-screen bg-[#0b0713] text-white px-4 py-6 pb-16">
+      {/* 右上角會員與登入狀態列 */}
+      <div className="mx-auto max-w-4xl flex justify-end mb-2">
+        <div className="inline-flex items-center gap-3 rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-xs">
+          {user ? (
+            <>
+              <span className="text-gray-300">{user.email}</span>
+              {isPro ? (
+                <span className="rounded-full bg-yellow-500/20 border border-yellow-500/50 px-2.5 py-0.5 font-bold text-yellow-400">
+                  👑 PRO
+                </span>
+              ) : (
+                <button
+                  onClick={() => setShowPaywall(true)}
+                  className="font-bold text-yellow-400 underline hover:text-yellow-300"
+                >
+                  升級 PRO
+                </button>
+              )}
               <button
-                onClick={() => setShowPaywall(true)}
-                className="text-amber-400 hover:text-amber-300 underline font-bold"
+                onClick={logout}
+                className="text-gray-400 hover:text-white transition"
               >
-                升級 PRO
+                登出
               </button>
-            )}
+            </>
+          ) : (
             <button
-              onClick={logout}
-              className="text-zinc-400 hover:text-red-400 ml-1 transition"
+              onClick={loginWithGoogle}
+              className="font-semibold text-yellow-400 hover:text-yellow-300"
             >
-              登出
+              🔑 Google 登入
             </button>
-          </div>
-        ) : (
-          <button
-            onClick={loginWithGoogle}
-            className="flex items-center gap-1.5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-600 px-3.5 py-1.5 rounded-full text-xs font-bold text-gray-200 transition shadow"
-          >
-            <span>🔑 Google 登入</span>
-          </button>
-        )}
+          )}
+        </div>
       </div>
 
-      <div className="z-10 w-full max-w-4xl flex flex-col items-center relative pb-16">
-        <h1 className="text-5xl md:text-7xl font-black tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-cyan-400 mb-2 drop-shadow-lg text-center mt-4">
+      {/* 標題區 */}
+      <div className="text-center mb-8">
+        <h1 className="text-5xl font-extrabold tracking-wider bg-gradient-to-r from-purple-400 via-indigo-300 to-cyan-400 bg-clip-text text-transparent mb-2">
           大醉翁
         </h1>
-        <p className="text-gray-400 tracking-widest mb-4 font-bold text-sm md:text-lg">
+        <p className="text-xs tracking-[0.25em] text-gray-400">
           ALCOHUB | 酒精版地產爭奪戰
         </p>
-
-        {/* 👑 PRO 徽章顯示 */}
-        {isPro && (
-          <div className="bg-gradient-to-r from-yellow-500 to-orange-500 text-black font-black px-6 py-2 rounded-full mb-8 shadow-[0_0_20px_rgba(234,179,8,0.5)] animate-pulse">
-            👑 PRO 專業版已解鎖（全功能開放）
-          </div>
-        )}
-        {!isPro && <div className="mb-6"></div>}
-
-        {/* 玩家設定區塊 */}
-        <div className="w-full bg-[#12051f]/80 backdrop-blur-md border border-purple-500/30 rounded-2xl p-6 shadow-[0_0_30px_rgba(168,85,247,0.15)] mb-8">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-black text-white flex items-center gap-2">
-              👥 玩家設定 <span className="text-sm text-gray-400 font-normal">({players.length}/{isPro ? '8' : '4'} 人)</span>
-            </h2>
-            <button onClick={addPlayer} className="bg-purple-600 hover:bg-purple-500 px-4 py-2 rounded-lg font-bold transition-colors shadow-md">
-              + 新增玩家
-            </button>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {players.map((p, idx) => (
-              <div key={p.id} className={`flex flex-col p-4 rounded-xl border-2 transition-all ${p.color}`}>
-                <div className="flex justify-between items-center mb-3">
-                  <span className="font-bold text-lg text-white">玩家 {idx + 1}</span>
-                  {players.length > 2 && <button onClick={() => removePlayer(p.id)} className="text-red-400 hover:text-red-300 font-bold text-sm bg-black/40 px-2 py-1 rounded">刪除</button>}
-                </div>
-                <div className="flex gap-3 mb-3">
-                  <div className="flex flex-col w-1/4">
-                    <label className="text-xs text-white/70 font-bold mb-1">頭像</label>
-                    <input type="text" value={p.icon} onChange={(e) => handlePlayerChange(p.id, 'icon', e.target.value)} className="bg-black/50 border border-white/20 rounded-lg p-2 text-center text-xl focus:outline-none w-full" maxLength={2} />
-                  </div>
-                  <div className="flex flex-col w-3/4">
-                    <label className="text-xs text-white/70 font-bold mb-1">暱稱</label>
-                    <input type="text" value={p.name} onChange={(e) => handlePlayerChange(p.id, 'name', e.target.value)} className="bg-black/50 border border-white/20 rounded-lg p-2 text-white font-bold focus:outline-none w-full" placeholder="輸入暱稱" maxLength={10} />
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  {PRESET_COLORS.map(colorOption => {
-                    const isUsed = players.some(player => player.hexColor === colorOption.hex);
-                    const isMine = p.hexColor === colorOption.hex;
-                    return (
-                      <button key={colorOption.hex} onClick={() => handleColorChange(p.id, colorOption.hex)} className={`w-6 h-6 rounded-full border-2 transition-all ${isMine ? 'border-white scale-125' : 'border-transparent'} ${isUsed && !isMine ? 'opacity-20 cursor-not-allowed' : 'hover:scale-110'}`} style={{ backgroundColor: colorOption.hex }} />
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* 遊戲時間設定 */}
-        <div className="w-full bg-[#12051f]/80 backdrop-blur-md border border-cyan-500/30 rounded-2xl p-6 shadow-[0_0_30px_rgba(6,182,212,0.15)] mb-8">
-          <h2 className="text-2xl font-black text-white mb-4">⏱ 遊戲時長設定</h2>
-          <div className="flex flex-wrap items-center gap-3">
-            {[10, 30, 45, 60].map(t => (
-              <button 
-                key={t} 
-                onClick={() => {
-                  if (!isPro && t > 10) {
-                    setShowPaywall(true);
-                    return;
-                  }
-                  setTimeMinutes(t);
-                }} 
-                className={`px-5 py-3 rounded-xl font-black text-lg transition-all border-2 relative overflow-hidden
-                  ${timeMinutes === t ? 'border-cyan-400 bg-cyan-900/60 text-white shadow-[0_0_15px_rgba(34,211,238,0.5)]' : 'border-gray-700 bg-gray-800 text-gray-400'}
-                  ${!isPro && t > 10 ? 'opacity-60 grayscale cursor-not-allowed hover:border-red-500' : 'hover:border-gray-500'}
-                `}
-              >
-                {t} 分鐘 
-                {!isPro && t > 10 && <span className="absolute -top-1 -right-1 text-sm bg-red-600 text-white px-1.5 py-0.5 rounded-bl-lg">PRO</span>}
-                {!isPro && t === 10 && <span className="absolute -top-1 -right-1 text-[10px] bg-green-600 text-white px-1 py-0.5 rounded-bl-lg">免費試玩</span>}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* 👑 PRO 解鎖引導卡片 */}
-        {!isPro && (
-          <div className="w-full bg-gradient-to-r from-yellow-950/60 via-purple-950/50 to-orange-950/60 border-2 border-yellow-500/60 rounded-3xl p-6 md:p-8 shadow-[0_0_50px_rgba(234,179,8,0.25)] mb-8 flex flex-col items-center">
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-2xl">👑</span>
-              <h2 className="text-2xl md:text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 via-orange-300 to-yellow-500">
-                升級大醉翁 PRO 完整版
-              </h2>
-            </div>
-            <p className="text-gray-300 text-sm md:text-base font-bold mb-6 text-center">告別 10 分鐘試玩斷點，一次解鎖所有血流成河的邪惡機制！</p>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 w-full mb-8">
-              <div className="bg-black/50 border border-yellow-500/30 rounded-xl p-3.5 flex items-start gap-3">
-                <span className="text-2xl bg-yellow-500/20 p-2 rounded-lg shrink-0">⚔️</span>
-                <div><h4 className="font-black text-yellow-300 text-sm md:text-base">自由搶奪對決</h4><p className="text-xs text-gray-400 mt-0.5">踩中他人領地可主動發起 PK 搶奪，勝者奪地、敗者喝雙倍！</p></div>
-              </div>
-              <div className="bg-black/50 border border-yellow-500/30 rounded-xl p-3.5 flex items-start gap-3">
-                <span className="text-2xl bg-yellow-500/20 p-2 rounded-lg shrink-0">⏳</span>
-                <div><h4 className="font-black text-yellow-300 text-sm md:text-base">長局模式 (最高 60 分鐘)</h4><p className="text-xs text-gray-400 mt-0.5">解鎖 30 / 45 / 60 分鐘超長對局，支援最多 8 人同時狂歡。</p></div>
-              </div>
-              <div className="bg-black/50 border border-yellow-500/30 rounded-xl p-3.5 flex items-start gap-3">
-                <span className="text-2xl bg-yellow-500/20 p-2 rounded-lg shrink-0">🎮</span>
-                <div><h4 className="font-black text-yellow-300 text-sm md:text-base">13 款派對小遊戲全解鎖</h4><p className="text-xs text-gray-400 mt-0.5">追加真心話大冒險、射龍門、倒楣A 等高恥度玩法。</p></div>
-              </div>
-              <div className="bg-black/50 border border-yellow-500/30 rounded-xl p-3.5 flex items-start gap-3">
-                <span className="text-2xl bg-yellow-500/20 p-2 rounded-lg shrink-0">💥</span>
-                <div><h4 className="font-black text-yellow-300 text-sm md:text-base">暗黑破壞卡庫</h4><p className="text-xs text-gray-400 mt-0.5">解鎖摧毀卡（炸毀地產）、國王卡（絕對命令）、全域災難。</p></div>
-              </div>
-            </div>
-
-            <button 
-              onClick={() => setShowPaywall(true)}
-              className="bg-gradient-to-r from-yellow-500 via-orange-400 to-yellow-500 hover:scale-105 transition-transform text-black font-black text-xl px-8 py-4 rounded-2xl shadow-[0_0_30px_rgba(234,179,8,0.5)] w-full max-w-md flex flex-col items-center justify-center cursor-pointer"
-            >
-              <span className="tracking-wide">💳 立即解鎖 PRO 版（HK$28 起）</span>
-              <span className="text-xs font-bold opacity-80 mt-1">支援 Apple Pay / Google Pay / 信用卡 · 綁定帳號永久可用</span>
-            </button>
-          </div>
-        )}
-
-        {/* ⚠️ 安全免責聲明與開始按鈕區塊 */}
-        <div className="w-full bg-[#11131a]/95 backdrop-blur-md border border-gray-700/60 rounded-2xl p-6 md:p-8 shadow-2xl mb-6 flex flex-col gap-5">
-          <h3 className="text-xl font-black flex items-center gap-2 text-red-400">
-            <span className="text-yellow-400 text-2xl">⚠️</span> 安全免責聲明
-          </h3>
-          <div className="bg-[#08090d] border border-gray-800 rounded-lg p-5 h-44 overflow-y-auto text-sm md:text-base text-gray-400 space-y-2 font-bold leading-relaxed scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-transparent">
-            <ol className="list-decimal pl-5 space-y-2 marker:text-gray-500">
-              <li>本遊戲包含飲酒懲罰機制，僅限達到法定飲酒年齡之成年人遊玩。</li>
-              <li>玩家應根據自身酒量與身體狀況量力而為，嚴禁強迫灌酒或霸凌行為。</li>
-              <li>遊戲過程中若感身體不適，請立即停止遊戲並尋求協助。</li>
-              <li>喝酒不開車，開車不喝酒。遊玩後請確保有安全返家的交通方式。</li>
-              <li>遊戲開發者與平台對玩家因遊玩本遊戲而產生之任何健康、法律或財產後果概不負責。</li>
-            </ol>
-          </div>
-          <label className="flex items-center gap-3 cursor-pointer group w-max my-1">
-            <div className={`w-6 h-6 flex items-center justify-center border-2 rounded-[4px] transition-all ${agreed ? 'bg-transparent border-gray-400' : 'bg-transparent border-gray-500 group-hover:border-gray-400'}`}>
-              {agreed && <span className="text-gray-200 text-sm font-black drop-shadow-md">✓</span>}
-            </div>
-            <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="hidden" />
-            <span className={`font-bold text-lg select-none transition-colors ${agreed ? 'text-gray-300' : 'text-gray-400'}`}>
-              我已閱讀並同意上述條款
-            </span>
-          </label>
-          <button 
-            onClick={() => agreed && setIsGameStarted(true)} 
-            disabled={!agreed}
-            className={`w-full py-4 rounded-xl font-black text-xl transition-all duration-300 ${agreed ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-[0_0_20px_rgba(79,70,229,0.5)] hover:scale-[1.02] cursor-pointer border border-blue-500/50' : 'bg-[#1c202a] text-gray-500 cursor-not-allowed border border-gray-700/50'}`}
-          >
-            {agreed ? "🚀 開始遊戲" : "請先勾選同意上述條款"}
-          </button>
-        </div>
-
       </div>
 
-      {/* 👑 PRO 購買彈窗 */}
+      <div className="mx-auto max-w-4xl space-y-6">
+        {/* 玩家設定區塊 */}
+        <div className="rounded-2xl border border-purple-500/20 bg-[#120d1d] p-6 shadow-xl">
+          <div className="flex items-center justify-between mb-5">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">👥</span>
+              <h2 className="text-lg font-bold">玩家設定</h2>
+              <span className="text-xs text-gray-400">
+                ({players.length}/{maxPlayers} 人)
+              </span>
+            </div>
+            <button
+              onClick={handleAddPlayer}
+              className="rounded-lg bg-purple-600 px-4 py-2 text-xs font-bold text-white hover:bg-purple-500 transition"
+            >
+              + 新增玩家 {!isPro && players.length >= 4 ? '(PRO 解鎖 8 人)' : ''}
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {players.map((player, index) => (
+              <div
+                key={player.id}
+                style={{
+                  borderColor: player.color,
+                  backgroundColor: `${player.color}15`,
+                }}
+                className="rounded-xl border-2 p-4 transition"
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <span className="font-bold text-sm">玩家 {index + 1}</span>
+                  {players.length > 2 && (
+                    <button
+                      onClick={() => handleRemovePlayer(player.id)}
+                      className="rounded bg-red-950/60 px-2 py-0.5 text-[11px] text-red-300 hover:bg-red-900"
+                    >
+                      刪除
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-3 mb-3">
+                  <div>
+                    <div className="text-[11px] text-gray-400 mb-1">頭像</div>
+                    <button
+                      type="button"
+                      onClick={() => handleCycleAvatar(player.id, player.avatar)}
+                      className="flex h-10 w-16 items-center justify-center rounded-lg border border-white/10 bg-black/50 text-xl hover:border-white/30"
+                      title="點擊切換頭像"
+                    >
+                      {player.avatar}
+                    </button>
+                  </div>
+                  <div className="flex-1">
+                    <div className="text-[11px] text-gray-400 mb-1">暱稱</div>
+                    <input
+                      type="text"
+                      value={player.name}
+                      onChange={(e) =>
+                        handleUpdatePlayer(player.id, 'name', e.target.value)
+                      }
+                      className="w-full rounded-lg border border-white/10 bg-black/50 px-3 py-2 text-sm text-white focus:border-purple-400 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                {/* 顏色選擇 */}
+                <div className="flex items-center gap-2 pt-1">
+                  {COLOR_OPTIONS.map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => handleUpdatePlayer(player.id, 'color', c)}
+                      style={{ backgroundColor: c }}
+                      className={`h-6 w-6 rounded-full transition ${
+                        player.color === c
+                          ? 'ring-2 ring-white scale-110'
+                          : 'opacity-40 hover:opacity-80'
+                      }`}
+                    />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* 遊戲時長設定 */}
+        <div className="rounded-2xl border border-purple-500/20 bg-[#120d1d] p-6 shadow-xl">
+          <div className="flex items-center gap-2 mb-4">
+            <span>⏱️</span>
+            <h2 className="text-lg font-bold">遊戲時長設定</h2>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {[
+              { mins: 10, badge: '免費試玩', free: true },
+              { mins: 30, badge: 'PRO', free: false },
+              { mins: 45, badge: 'PRO', free: false },
+              { mins: 60, badge: 'PRO', free: false },
+            ].map((item) => {
+              const isSelected = duration === item.mins;
+              return (
+                <button
+                  key={item.mins}
+                  type="button"
+                  onClick={() => handleSelectDuration(item.mins)}
+                  className={`relative rounded-xl border p-3.5 text-center font-bold transition ${
+                    isSelected
+                      ? 'border-cyan-400 bg-cyan-950/40 text-white shadow-[0_0_15px_rgba(34,211,238,0.25)]'
+                      : 'border-white/10 bg-white/5 text-gray-400 hover:border-white/25'
+                  }`}
+                >
+                  <span
+                    className={`absolute -top-2 right-2 rounded px-1.5 py-0.5 text-[10px] font-bold ${
+                      item.free
+                        ? 'bg-emerald-500 text-black'
+                        : 'bg-white/10 text-gray-300'
+                    }`}
+                  >
+                    {item.badge}
+                  </span>
+                  {item.mins} 分鐘
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* PRO 完整版宣傳區塊（未開通時顯示） */}
+        {!isPro && (
+          <div className="rounded-2xl border border-yellow-500/40 bg-gradient-to-b from-[#1f170b] to-[#120e07] p-6 shadow-2xl">
+            <div className="text-center mb-5">
+              <h3 className="text-xl font-extrabold text-yellow-400 mb-1">
+                👑 升級大醉翁 PRO 完整版
+              </h3>
+              <p className="text-xs text-gray-300">
+                告別 10 分鐘試玩斷點，一次解鎖所有血流成河的邪惡機制！
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-5">
+              <div className="rounded-xl border border-yellow-600/20 bg-black/30 p-3.5 flex gap-3">
+                <span className="text-xl">⚔️</span>
+                <div>
+                  <div className="text-sm font-bold text-yellow-400">
+                    自由搶奪對決
+                  </div>
+                  <div className="text-xs text-gray-400 mt-0.5">
+                    踩中他人領地可主動發起 PK 搶奪，勝者奪地、敗者喝雙倍！
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-yellow-600/20 bg-black/30 p-3.5 flex gap-3">
+                <span className="text-xl">⏳</span>
+                <div>
+                  <div className="text-sm font-bold text-yellow-400">
+                    長局模式 (最高 60 分鐘)
+                  </div>
+                  <div className="text-xs text-gray-400 mt-0.5">
+                    解鎖 30 / 45 / 60 分鐘超長對局，支援最多 8 人同時狂歡。
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-yellow-600/20 bg-black/30 p-3.5 flex gap-3">
+                <span className="text-xl">🎮</span>
+                <div>
+                  <div className="text-sm font-bold text-yellow-400">
+                    13 款派對小遊戲全解鎖
+                  </div>
+                  <div className="text-xs text-gray-400 mt-0.5">
+                    追加真心話大冒險、射龍門、倒楣A 等高恥度玩法。
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-yellow-600/20 bg-black/30 p-3.5 flex gap-3">
+                <span className="text-xl">💥</span>
+                <div>
+                  <div className="text-sm font-bold text-yellow-400">
+                    暗黑破壞卡庫
+                  </div>
+                  <div className="text-xs text-gray-400 mt-0.5">
+                    解鎖摧毀卡（炸毀地產）、國王卡（絕對命令）、全域災難。
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="text-center">
+              <button
+                onClick={() => setShowPaywall(true)}
+                className="w-full sm:w-auto rounded-xl bg-gradient-to-r from-yellow-500 to-amber-600 px-8 py-3 text-sm font-extrabold text-black shadow-lg hover:brightness-110 transition"
+              >
+                🔥 立即解鎖 PRO 版 ( HK$28 起 )
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* 開始遊戲按鈕 */}
+        <button
+          onClick={handleStartNewGame}
+          className="w-full rounded-2xl bg-gradient-to-r from-purple-600 via-pink-600 to-orange-500 py-4 text-lg font-extrabold tracking-wider text-white shadow-xl hover:brightness-110 transition"
+        >
+          🎲 立即開局（{duration} 分鐘）
+        </button>
+      </div>
+
+      {/* 付費彈窗 */}
       <PaywallModal
         isOpen={showPaywall}
         onClose={() => setShowPaywall(false)}
-        auth={auth}
+        user={user}
+        onLogin={loginWithGoogle}
       />
     </div>
   );

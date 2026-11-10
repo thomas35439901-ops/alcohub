@@ -1,81 +1,140 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { markPendingUpgrade } from '../utils/gameStorage';
 
-export default function PaywallModal({ isOpen, onClose, auth }) {
+export default function PaywallModal({ isOpen, onClose, user, onLogin }) {
+  const [loadingPlan, setLoadingPlan] = useState(null);
+
   if (!isOpen) return null;
 
-  const { user, loginWithGoogle, startCheckout } = auth;
+  const handleCheckout = async (planType) => {
+    if (!user) {
+      alert('請先點擊 Google 登入以綁定您的 PRO 會員權限！');
+      if (onLogin) onLogin();
+      return;
+    }
+
+    try {
+      setLoadingPlan(planType);
+      const response = await fetch('/api/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          planType,
+          userId: user.id,
+          userEmail: user.email,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || '建立結帳連結失敗');
+      }
+
+      if (data.url) {
+        // 跳轉去 Stripe 前標記正在升級，讓返回時自動觸發無縫續局與補時
+        markPendingUpgrade();
+        window.location.href = data.url;
+      }
+    } catch (err) {
+      console.error('Checkout error:', err);
+      alert(`建立結帳連結失敗：${err.message}`);
+    } finally {
+      setLoadingPlan(null);
+    }
+  };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
-      <div className="relative w-full max-w-md rounded-2xl bg-zinc-900 border border-amber-500/30 p-6 text-white shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+      <div className="relative w-full max-w-md rounded-2xl border border-yellow-600/40 bg-[#14110b] p-6 text-white shadow-2xl">
         {/* 關閉按鈕 */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 text-zinc-400 hover:text-white text-xl font-bold"
+          className="absolute right-4 top-4 text-gray-400 hover:text-white transition"
+          aria-label="Close"
         >
           ✕
         </button>
 
-        {/* 標題與說明 */}
+        {/* 頂部標籤與標題 */}
         <div className="text-center mb-6">
-          <span className="inline-block px-3 py-1 text-xs font-bold uppercase tracking-wider text-amber-400 bg-amber-400/10 rounded-full mb-2">
+          <span className="inline-block rounded-full border border-yellow-600/50 bg-yellow-900/30 px-3 py-1 text-xs font-semibold text-yellow-400 mb-3">
             PRO 派對無限解鎖
           </span>
-          <h2 className="text-2xl font-black tracking-tight text-white">解鎖《大醉翁》完整模式</h2>
-          <p className="text-sm text-zinc-400 mt-1">
+          <h2 className="text-2xl font-bold text-white mb-2">
+            解鎖《大醉翁》完整模式
+          </h2>
+          <p className="text-xs text-gray-400 leading-relaxed">
             解鎖 8 人大亂鬥、60 分鐘長局、全體乾杯殘酷格及 13 款進階派對小遊戲
           </p>
         </div>
 
-        {/* 登入提示（若未登入） */}
+        {/* 未登入提示 */}
         {!user && (
-          <div className="mb-6 p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-center">
-            <p className="text-xs text-amber-200 mb-3">購買前請先登入 Google 帳號以綁定購買資格</p>
+          <div className="mb-4 rounded-xl border border-purple-500/40 bg-purple-950/30 p-3 text-center">
+            <p className="text-xs text-purple-200 mb-2">
+              購買前請先登入 Google 帳號，以便自動綁定開通權限
+            </p>
             <button
-              onClick={loginWithGoogle}
-              className="w-full py-2.5 px-4 rounded-xl bg-white text-zinc-900 font-bold text-sm shadow hover:bg-zinc-100 transition"
+              onClick={onLogin}
+              className="rounded-lg bg-white px-4 py-1.5 text-xs font-bold text-gray-900 hover:bg-gray-200 transition"
             >
-              使用 Google 一鍵登入
+              🔑 使用 Google 帳號登入
             </button>
           </div>
         )}
 
-        {/* 兩種收費卡片 */}
+        {/* 方案選項 */}
         <div className="space-y-4">
-          {/* 方案 A：24 小時通行證 */}
-          <div className="border border-zinc-700 hover:border-amber-500 rounded-xl p-4 bg-zinc-800/60 transition flex items-center justify-between">
+          {/* 24 小時暢玩通行證 */}
+          <div className="flex items-center justify-between rounded-xl border border-yellow-600/40 bg-[#1c170e] p-4 hover:border-yellow-500 transition">
             <div>
-              <div className="text-xs text-amber-400 font-semibold">派對必備・單次收費</div>
-              <div className="text-lg font-bold">24 小時暢玩通行證</div>
-              <div className="text-xs text-zinc-400">絕不自動續訂・嗨翻一整晚</div>
+              <div className="text-xs font-semibold text-yellow-500 mb-0.5">
+                派對必備・單次收費
+              </div>
+              <div className="text-lg font-bold text-white">
+                24 小時暢玩通行證
+              </div>
+              <div className="text-xs text-gray-400 mt-0.5">
+                絕不自動續訂・嗨翻一整晚
+              </div>
             </div>
             <button
-              onClick={() => startCheckout('24h')}
-              className="bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold px-4 py-2.5 rounded-lg text-sm transition"
+              onClick={() => handleCheckout('24h')}
+              disabled={loadingPlan !== null}
+              className="rounded-lg bg-yellow-600 px-4 py-2.5 text-sm font-bold text-black hover:bg-yellow-500 disabled:opacity-50 transition shrink-0"
             >
-              HK$28
+              {loadingPlan === '24h' ? '跳轉中...' : 'HK$28'}
             </button>
           </div>
 
-          {/* 方案 B：永久解鎖 */}
-          <div className="border-2 border-amber-500/80 rounded-xl p-4 bg-gradient-to-r from-amber-500/10 to-amber-600/10 transition flex items-center justify-between">
+          {/* 永久尊享版 PRO */}
+          <div className="flex items-center justify-between rounded-xl border border-yellow-600/40 bg-[#1c170e] p-4 hover:border-yellow-500 transition">
             <div>
-              <div className="text-xs text-amber-300 font-bold">限時優惠・終身無限</div>
-              <div className="text-lg font-bold text-white">永久尊享版 PRO</div>
-              <div className="text-xs text-zinc-400">一次購買，未來新遊戲全免費</div>
+              <div className="text-xs font-semibold text-yellow-500 mb-0.5">
+                限時優惠・終身無限
+              </div>
+              <div className="text-lg font-bold text-white">
+                永久尊享版 PRO
+              </div>
+              <div className="text-xs text-gray-400 mt-0.5">
+                一次購買，未來新遊戲全免費
+              </div>
             </div>
             <button
-              onClick={() => startCheckout('lifetime')}
-              className="bg-gradient-to-r from-amber-400 to-amber-500 hover:brightness-110 text-zinc-950 font-black px-4 py-2.5 rounded-lg text-sm shadow-lg transition"
+              onClick={() => handleCheckout('lifetime')}
+              disabled={loadingPlan !== null}
+              className="rounded-lg bg-yellow-600 px-4 py-2.5 text-sm font-bold text-black hover:bg-yellow-500 disabled:opacity-50 transition shrink-0"
             >
-              HK$88
+              {loadingPlan === 'lifetime' ? '跳轉中...' : 'HK$88'}
             </button>
           </div>
         </div>
 
-        <div className="mt-5 text-center">
-          <p className="text-[11px] text-zinc-500">支援 Apple Pay / Google Pay / 信用卡安全即時開通</p>
-        </div>
+        {/* 底部說明 */}
+        <p className="mt-5 text-center text-[11px] text-gray-500">
+          支援 Apple Pay / Google Pay / 信用卡安全即時開通
+        </p>
       </div>
     </div>
   );

@@ -1,135 +1,124 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabaseClient';
 
 export function useProAuth() {
   const [user, setUser] = useState(null);
-  const [profile, setProfile] = useState(null);
   const [isPro, setIsPro] = useState(false);
+  const [tier, setTier] = useState('free');
+  const [expiresAt, setExpiresAt] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // 檢查 PRO 狀態是否在有效期限內
-  const checkProStatus = (profileData) => {
-    if (!profileData) return false;
-    if (profileData.tier === 'lifetime') return true;
-    if (profileData.tier === 'pass_24h' && profileData.expires_at) {
-      return new Date(profileData.expires_at) > new Date();
+  const checkProStatus = useCallback(async (currentUser) => {
+    if (!currentUser) {
+      setIsPro(false);
+      setTier('free');
+      setExpiresAt(null);
+      setLoading(false);
+      return false;
     }
-    return Boolean(profileData.is_pro);
-  };
 
-  // 讀取 Supabase 裡的 profiles 資料表
-  const fetchProfile = useCallback(async (currentUserId) => {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('*')
-        .eq('id', currentUserId)
-        .single();
+        .select('is_pro, tier, expires_at')
+        .eq('id', currentUser.id)
+        .maybeSingle();
 
-      if (error && error.code !== 'PGRST116') {
-        console.error('讀取用戶設定檔出錯:', error);
-        return;
+      if (error || !data) {
+        setIsPro(false);
+        setLoading(false);
+        return false;
       }
 
-      if (data) {
-        setProfile(data);
-        setIsPro(checkProStatus(data));
+      const now = new Date();
+      let activePro = false;
+
+      if (data.tier === 'lifetime' && data.is_pro) {
+        activePro = true;
+      } else if (data.is_pro && data.expires_at) {
+        activePro = new Date(data.expires_at) > now;
+      } else if (data.is_pro && !data.expires_at) {
+        activePro = true;
       }
-    } catch (err) {
-      console.error(err);
-    } finally {
+
+      setIsPro(activePro);
+      setTier(activePro ? data.tier : 'free');
+      setExpiresAt(data.expires_at || null);
       setLoading(false);
+      return activePro;
+    } catch (err) {
+      console.error('檢查 PRO 狀態失敗:', err);
+      setIsPro(false);
+      setLoading(false);
+      return false;
     }
   }, []);
 
   useEffect(() => {
-    // 檢查初始登入狀態
+    let mounted = true;
+
     supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!mounted) return;
       const currentUser = session?.user ?? null;
       setUser(currentUser);
-      if (currentUser) {
-        fetchProfile(currentUser.id);
-      } else {
-        setLoading(false);
-      }
+      checkProStatus(currentUser);
     });
 
-    // 監聽登入/登出變化
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+    const { data: authListener } = supabase.auth.onAuthStateChange(
       (_event, session) => {
+        if (!mounted) return;
         const currentUser = session?.user ?? null;
         setUser(currentUser);
-        if (currentUser) {
-          fetchProfile(currentUser.id);
-        } else {
-          setProfile(null);
-          setIsPro(false);
-          setLoading(false);
-        }
+        checkProStatus(currentUser);
       }
     );
 
     return () => {
-      subscription.unsubscribe();
+      mounted = false;
+      authListener?.subscription?.unsubscribe();
     };
-  }, [fetchProfile]);
+  }, [checkProStatus]);
 
-  // Google 一鍵登入
+  // 當從 Stripe 付款成功跳回 (?payment=success) 時，自動重試確認 Webhook 已寫入完成
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('payment') === 'success' && user && !isPro) {
+      let attempts = 0;
+      const timer = setInterval(async () => {
+        attempts += 1;
+        const unlocked = await checkProStatus(user);
+        if (unlocked || attempts >= 6) {
+          clearInterval(timer);
+        }
+      }, 1500);
+      return () => clearInterval(timer);
+    }
+  }, [user, isPro, checkProStatus]);
+
   const loginWithGoogle = async () => {
-    const siteUrl = import.meta.env.VITE_SITE_URL || window.location.origin;
-    const { error } = await supabase.auth.signInWithOAuth({
+    await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: siteUrl,
+        redirectTo: window.location.origin,
       },
     });
-    if (error) alert('登入失敗: ' + error.message);
   };
 
-  // 登出
   const logout = async () => {
     await supabase.auth.signOut();
-  };
-
-  // 發起 Stripe 結帳跳轉
-  const startCheckout = async (planType = '24h') => {
-    if (!user) {
-      alert('請先使用 Google 帳號登入，以綁定購買權限！');
-      await loginWithGoogle();
-      return;
-    }
-
-    try {
-      const res = await fetch('/api/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          planType,
-          userId: user.id,
-          userEmail: user.email,
-        }),
-      });
-
-      const data = await res.json();
-      if (data.url) {
-        window.location.href = data.url; // 跳轉至 Stripe 官方收銀台
-      } else {
-        alert('建立結帳連結失敗：' + (data.error || '未知錯誤'));
-      }
-    } catch (err) {
-      console.error(err);
-      alert('無法連接結帳服務，請檢查網路連線。');
-    }
+    setUser(null);
+    setIsPro(false);
+    setTier('free');
   };
 
   return {
     user,
-    profile,
     isPro,
+    tier,
+    expiresAt,
     loading,
     loginWithGoogle,
     logout,
-    startCheckout,
-    refreshProfile: () => user && fetchProfile(user.id),
+    refreshProfile: () => checkProStatus(user),
   };
 }
